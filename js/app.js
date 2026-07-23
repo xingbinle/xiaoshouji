@@ -145,7 +145,6 @@ function renderMessages() {
   state.messages.forEach((msg, idx) => {
     container.appendChild(buildMessageNode(msg, idx));
   });
-  renderDraftPreview();
 
   setTimeout(() => {
     const chat = $('chatContainer');
@@ -155,6 +154,7 @@ function renderMessages() {
 
 function buildMessageNode(msg, idx) {
   const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
+  if (msg.pending) wrapper.classList.add('pending');
 
   // 撤回消息：只显示提示文字
   if (msg.type === 'recall') {
@@ -185,7 +185,6 @@ function buildMessageNode(msg, idx) {
     voice.appendChild(wave);
     voice.appendChild(el('span', { class: 'voice-duration' }, `${msg.duration || 0}"`));
     voice.appendChild(el('span', { class: 'voice-label' }, '语音'));
-    // 点击展开转文字
     const transcript = el('div', { class: 'voice-transcript', hidden: true });
     transcript.textContent = msg.text || '';
     voice.appendChild(transcript);
@@ -194,14 +193,12 @@ function buildMessageNode(msg, idx) {
     });
     bubble.appendChild(voice);
   } else if (msg.imageUrl) {
-    // 图片
     bubble.appendChild(el('img', {
       class: 'bubble-image',
       src: msg.imageUrl,
       alt: '图片',
     }));
   } else if (msg.text) {
-    // 文本（含代码块）
     const parts = splitCodeBlocks(msg.text);
     parts.forEach((part) => {
       if (part.type === 'code' && /html/i.test(part.lang)) {
@@ -216,21 +213,38 @@ function buildMessageNode(msg, idx) {
     });
   }
 
+  // 已编辑标记
+  if (msg.edited) {
+    const editedMark = el('span', { class: 'edited-mark' }, '已编辑');
+    bubble.appendChild(editedMark);
+  }
+
   // 消息操作按钮
   const actions = el('div', { class: 'msg-actions' });
-  // 撤回按钮（用户消息 + AI 消息都可以）
-  const recallBtn = el('button', { class: 'msg-action-btn', title: '撤回', 'aria-label': '撤回' });
-  recallBtn.appendChild(icon('i-x', 'icon-sm'));
-  recallBtn.addEventListener('click', () => recallMessage(idx));
-  actions.appendChild(recallBtn);
+
+  // 只有 pending（未发送给AI）的消息才能撤回/编辑
+  if (msg.pending) {
+    // 编辑按钮
+    const editBtn = el('button', { class: 'msg-action-btn', title: '编辑', 'aria-label': '编辑' });
+    editBtn.appendChild(icon('i-pencil', 'icon-sm'));
+    editBtn.addEventListener('click', () => editMessage(idx));
+    actions.appendChild(editBtn);
+
+    // 撤回按钮
+    const recallBtn = el('button', { class: 'msg-action-btn', title: '撤回', 'aria-label': '撤回' });
+    recallBtn.appendChild(icon('i-x', 'icon-sm'));
+    recallBtn.addEventListener('click', () => recallMessage(idx));
+    actions.appendChild(recallBtn);
+  }
 
   // AI 最后一条消息：重生成
-  if (msg.role === 'ai' && idx === state.messages.length - 1) {
+  if (msg.role === 'ai' && idx === state.messages.length - 1 && !msg.pending) {
     const regenBtn = el('button', { class: 'msg-action-btn', title: '重新生成', 'aria-label': '重新生成' });
     regenBtn.appendChild(icon('i-refresh', 'icon-sm'));
     regenBtn.addEventListener('click', () => regenerate());
     actions.appendChild(regenBtn);
   }
+
   // 删除按钮
   const delBtn = el('button', { class: 'msg-action-btn', title: '删除消息', 'aria-label': '删除消息' });
   delBtn.appendChild(icon('i-trash', 'icon-sm'));
@@ -245,16 +259,33 @@ function buildMessageNode(msg, idx) {
   return wrapper;
 }
 
-// 撤回消息（在消息流中插入一个撤回占位，原始内容丢弃）
+// 撤回消息
 function recallMessage(idx) {
   if (idx < 0 || idx >= state.messages.length) return;
   const target = state.messages[idx];
-  if (target.type === 'recall') return; // 已撤回
+  if (target.type === 'recall') return;
   state.messages[idx] = {
     role: target.role,
     type: 'recall',
     text: '',
   };
+  saveState();
+  renderMessages();
+}
+
+// 编辑消息（弹窗）
+function editMessage(idx) {
+  const target = state.messages[idx];
+  if (!target.pending) return;
+  const text = prompt('编辑消息', target.text || '');
+  if (text === null) return;
+  if (text.trim() === '') {
+    // 空字符串就当成撤回
+    recallMessage(idx);
+    return;
+  }
+  target.text = text;
+  target.edited = true;
   saveState();
   renderMessages();
 }
@@ -456,64 +487,57 @@ async function fetchModelList() {
   }
 }
 
-// ============ 消息队列（草稿系统） ============
-// pendingMessages 暂存月月输入但未发送的消息
-let pendingMessages = [];
-
-// 把当前输入框内容追加到聊天界面（不触发 AI）
-function appendDraft() {
+// ============ 消息发送（重写：进入聊天界面但不触发 AI） ============
+// Enter 把当前输入框内容**直接发到聊天界面**（pending=true），不调 API
+function enterSendToChat() {
   const text = $('messageInput').value;
-  const hasText = text && text.trim().length > 0;
-  if (!hasText) return;
+  if (!text || !text.trim()) return;
 
-  // 拆分成多行（按 Enter 分隔），每行变成一条消息
-  const lines = text.split('\n').filter((line) => line.length > 0);
+  // 支持 Shift+Enter 多行 → 拆成多条消息
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
   lines.forEach((line) => {
-    pendingMessages.push({ role: 'user', type: 'text', text: line });
+    state.messages.push({
+      role: 'user',
+      type: 'text',
+      text: line.trim(),
+      pending: true,  // 已发到聊天界面，但没发给 AI
+    });
   });
 
   $('messageInput').value = '';
   $('messageInput').style.height = 'auto';
-  renderDraftPreview();
+  saveState();
+  renderMessages();
 }
 
-// 渲染草稿预览（在聊天列表底部显示）
-function renderDraftPreview() {
-  let preview = $('draftPreview');
-  if (pendingMessages.length === 0) {
-    if (preview) preview.remove();
-    return;
-  }
-  if (!preview) {
-    preview = el('div', { id: 'draftPreview', class: 'draft-preview' });
-    $('messages').appendChild(preview);
-  }
-  preview.innerHTML = '';
-  pendingMessages.forEach((msg, idx) => {
-    const item = el('div', { class: 'draft-item' });
-    item.appendChild(el('span', { class: 'draft-text' }, msg.text));
-    const removeBtn = el('button', { class: 'draft-remove', 'aria-label': '删除' });
-    removeBtn.appendChild(icon('i-close', 'icon-sm'));
-    removeBtn.addEventListener('click', () => {
-      pendingMessages.splice(idx, 1);
-      renderDraftPreview();
-    });
-    item.appendChild(removeBtn);
-    preview.appendChild(item);
-  });
-}
-
-// ============ 发送消息（点 🛩️ 触发） ============
+// ============ 点 🛩️ 触发 AI ============
 async function sendMessage() {
-  // 先把输入框的草稿加进队列
-  appendDraft();
+  // 先把当前输入框内容也加进去
+  enterSendToChat();
 
-  // 队列有内容就加进消息流
-  if (pendingMessages.length > 0) {
-    state.messages.push(...pendingMessages);
-    pendingMessages = [];
-    renderDraftPreview();
+  // 检查是否有 pending 消息
+  const hasPending = state.messages.some((m) => m.pending);
+  if (!hasPending) {
+    // 空文本模式：让 AI 继续读上下文
+    // 取最后一条用户消息，丢弃其后所有 AI 回复
+    const lastUserIdx = (() => {
+      for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'user' && state.messages[i].type !== 'recall') return i;
+      }
+      return -1;
+    })();
+    if (lastUserIdx < 0) return;
+    state.messages = state.messages.slice(0, lastUserIdx + 1);
+    renderMessages();
   }
+
+  // 把所有 pending 标记去掉（已发送给 AI）
+  state.messages.forEach((m) => {
+    if (m.pending) {
+      m.pending = false;
+      // 标记为已编辑过的消息，编辑标记清除
+    }
+  });
 
   $('loadingBubble').hidden = false;
   $('sendBtn').disabled = true;
@@ -539,7 +563,9 @@ async function sendMessage() {
       if (m.type === 'recall') {
         return { role, content: '[撤回了一条消息]' };
       }
-      return { role, content: m.text || '' };
+      let content = m.text || '';
+      if (m.edited) content += ' (已编辑)';
+      return { role, content };
     }).filter((m) => {
       if (m.role === 'user' && (m.content === '' || (Array.isArray(m.content) && !m.content.length))) return false;
       return true;
@@ -557,7 +583,7 @@ async function sendMessage() {
       }
     }
 
-    // 尝试解析 JSON（多消息格式）
+    // 解析 AI 回复（支持 JSON 多消息格式）
     const parsedMessages = parseAIResponse(rawReply);
     parsedMessages.forEach((msg) => {
       state.messages.push({ role: 'ai', ...msg });
@@ -576,7 +602,7 @@ async function sendMessage() {
 
 // 解析 AI 回复（支持 JSON 多消息格式）
 function parseAIResponse(raw) {
-  // 尝试提取 JSON
+  // 先尝试从原始文本中提取最外层的 JSON 对象
   const jsonMatch = raw.match(/\{[\s\S]*?"messages"[\s\S]*?\}/);
   if (jsonMatch) {
     try {
@@ -590,7 +616,7 @@ function parseAIResponse(raw) {
         }));
       }
     } catch (e) {
-      // JSON 解析失败，走下面的 fallback
+      // 解析失败，下面 fallback
     }
   }
   // 兼容老格式：纯文本
@@ -757,9 +783,17 @@ function confirmVoice() {
     toast('语音内容不能为空');
     return;
   }
-  pendingMessages.push({ role: 'user', type: 'voice', duration, text });
+  // 直接加到聊天界面（pending），等点 🛩️ 才发 AI
+  state.messages.push({
+    role: 'user',
+    type: 'voice',
+    duration,
+    text,
+    pending: true,
+  });
   closeVoicePanel();
-  renderDraftPreview();
+  saveState();
+  renderMessages();
 }
 
 // ============ 多选删除模式 ============
@@ -888,12 +922,12 @@ function init() {
   });
 
   // Enter = 把当前行加到聊天列表（不触发 AI）
-  // Shift+Enter = 真的换行（在同一气泡内编辑）
-  // Ctrl/Command+Enter = 直接发送
+  // Shift+Enter = 真的换行（在同一输入框内多行编辑）
+  // Ctrl/Command+Enter = 直接发送给 AI
   $('messageInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      appendDraft();
+      enterSendToChat();
     } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       sendMessage();
