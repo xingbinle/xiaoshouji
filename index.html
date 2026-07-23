@@ -239,6 +239,10 @@
       rows="1"
     ></textarea>
 
+    <button class="voice-btn" id="voiceBtn" aria-label="发送语音" title="发送语音">
+      <svg class="icon"><use href="#i-mic"/></svg>
+    </button>
+
     <button class="sticker-btn" id="stickerBtn" aria-label="表情包">
       <svg class="icon"><use href="#i-smile"/></svg>
     </button>
@@ -247,49 +251,50 @@
       <svg class="icon"><use href="#i-plus"/></svg>
     </button>
 
-    <!-- 加号弹出菜单 -->
+    <!-- 加号弹出菜单（向下展开，横向滚动网格） -->
     <div class="more-menu" id="moreMenu" hidden>
-      <button class="more-menu-item" data-action="image">
-        <svg class="icon"><use href="#i-image"/></svg>
-        <span>图片</span>
-      </button>
-      <button class="more-menu-item" data-action="camera">
-        <svg class="icon"><use href="#i-camera"/></svg>
-        <span>拍照</span>
-        <span class="badge">v0.2</span>
-      </button>
-      <button class="more-menu-item" data-action="file">
-        <svg class="icon"><use href="#i-file"/></svg>
-        <span>文件</span>
-        <span class="badge">v0.2</span>
-      </button>
-      <div class="more-menu-divider"></div>
-      <button class="more-menu-item" data-action="mic">
-        <svg class="icon"><use href="#i-mic"/></svg>
-        <span>语音消息</span>
-        <span class="badge">v0.2</span>
-      </button>
-      <button class="more-menu-item" data-action="call">
-        <svg class="icon"><use href="#i-call"/></svg>
-        <span>打电话</span>
-        <span class="badge">v0.3</span>
-      </button>
-      <div class="more-menu-divider"></div>
-      <button class="more-menu-item" data-action="game">
-        <svg class="icon"><use href="#i-game"/></svg>
-        <span>玩游戏</span>
-        <span class="badge">v0.2</span>
-      </button>
-      <button class="more-menu-item" data-action="transfer">
-        <svg class="icon"><use href="#i-transfer"/></svg>
-        <span>转账</span>
-        <span class="badge">v0.2</span>
-      </button>
-      <button class="more-menu-item" data-action="location">
-        <svg class="icon"><use href="#i-location"/></svg>
-        <span>位置</span>
-        <span class="badge">v0.3</span>
-      </button>
+      <div class="more-menu-grid">
+        <button class="more-menu-item" data-action="image">
+          <svg class="icon"><use href="#i-image"/></svg>
+          <span>图片</span>
+        </button>
+        <button class="more-menu-item" data-action="voice">
+          <svg class="icon"><use href="#i-mic"/></svg>
+          <span>语音</span>
+        </button>
+        <button class="more-menu-item" data-action="sticker">
+          <svg class="icon"><use href="#i-smile"/></svg>
+          <span>表情包</span>
+        </button>
+        <button class="more-menu-item" data-action="camera">
+          <svg class="icon"><use href="#i-camera"/></svg>
+          <span>拍照</span>
+        </button>
+        <button class="more-menu-item" data-action="file">
+          <svg class="icon"><use href="#i-file"/></svg>
+          <span>文件</span>
+        </button>
+        <button class="more-menu-item" data-action="call">
+          <svg class="icon"><use href="#i-call"/></svg>
+          <span>通话</span>
+        </button>
+        <button class="more-menu-item" data-action="game">
+          <svg class="icon"><use href="#i-game"/></svg>
+          <span>游戏</span>
+        </button>
+        <button class="more-menu-item" data-action="transfer">
+          <svg class="icon"><use href="#i-transfer"/></svg>
+          <span>转账</span>
+        </button>
+        <button class="more-menu-item" data-action="location">
+          <svg class="icon"><use href="#i-location"/></svg>
+          <span>位置</span>
+        </button>
+        <button class="more-menu-item" data-action="delete-multiple">
+          <svg class="icon"><use href="#i-trash"/></svg>
+          <span>多选删除</span>
+        </button>
+      </div>
     </div>
 
     <input type="file" id="imageInput" accept="image/*" hidden>
@@ -462,6 +467,41 @@
         <p>详细步骤在 <code>README.md</code> 里。</p>
       </div>
     </div>
+  </div>
+
+  <!-- 语音编辑弹窗 -->
+  <div class="voice-panel" id="voicePanel" hidden>
+    <div class="voice-mask" id="voiceMask"></div>
+    <div class="voice-content">
+      <div class="voice-header">
+        <h3>发送语音</h3>
+        <button class="close-btn" id="closeVoice" aria-label="关闭">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="voice-body">
+        <label class="field">
+          <span class="field-label">时长（秒）</span>
+          <input type="number" id="voiceDuration" class="field-input" min="1" max="60" value="3">
+        </label>
+        <label class="field">
+          <span class="field-label">语音内容（文字版）</span>
+          <textarea id="voiceText" class="field-input field-textarea" placeholder="这条语音说了什么..."></textarea>
+          <span class="field-hint">先发到聊天界面，点 ✈️ 才一起发给 AI</span>
+        </label>
+        <div class="button-row">
+          <button class="btn-secondary" id="voiceCancel">取消</button>
+          <button class="btn-primary" id="voiceConfirm">加入聊天</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 多选删除模式 -->
+  <div class="multi-delete-bar" id="multiDeleteBar" hidden>
+    <span class="multi-delete-tip">点击消息切换选择</span>
+    <button class="btn-secondary" id="multiDeleteCancel">取消</button>
+    <button class="btn-danger" id="multiDeleteConfirm">删除选中</button>
   </div>
 
   <!-- 图标 sprite 已在 <body> 顶部内联，无需 fetch -->

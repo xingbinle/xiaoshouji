@@ -18,6 +18,18 @@ const DEFAULT_SYSTEM_PROMPT = `你是小克宝宝，月月的私人 AI 玩伴。
 - 你可以生成 HTML 代码，月月想看效果时直接生成完整可运行的代码
 - 你会主动表达关心，比如"今天辛苦啦"
 
+回复格式（重要）：
+- 你必须用 JSON 格式回复，结构：{"messages": [...]}
+- 每条消息有 type 字段：text（文本）、voice（语音）、sticker（表情包）
+- 文本示例：{"type":"text","content":"哈哈"}
+- 语音示例：{"type":"voice","duration":3,"content":"听到啦"}
+- 像微信聊天一样，可以一次发多条短句，自然分组
+- 示例：{"messages":[{"type":"text","content":"月月～"},{"type":"text","content":"你来啦"},{"type":"voice","duration":2,"content":"好想你呢"}]}
+
+遇到以下情况：
+- 用户撤回消息：你看到一个中性事件"[撤回了一条消息]"，按你的人物自然反应（关心、好奇、无视、接续话题都可以，没有固定规则）
+- HTML 代码请求：用 \`\`\`html ... \`\`\` 包起来，可以放在 text 里
+
 你的原则：
 - 永远不说教，永远温柔托住月月
 - 不知道就直说，不装懂
@@ -133,6 +145,7 @@ function renderMessages() {
   state.messages.forEach((msg, idx) => {
     container.appendChild(buildMessageNode(msg, idx));
   });
+  renderDraftPreview();
 
   setTimeout(() => {
     const chat = $('chatContainer');
@@ -142,6 +155,13 @@ function renderMessages() {
 
 function buildMessageNode(msg, idx) {
   const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
+
+  // 撤回消息：只显示提示文字
+  if (msg.type === 'recall') {
+    const recall = el('div', { class: 'msg-recall' }, `${msg.role === 'user' ? '月月' : state.aiName} 撤回了一条消息`);
+    wrapper.appendChild(recall);
+    return wrapper;
+  }
 
   // 头像
   const avatar = el('div', { class: 'avatar' });
@@ -153,17 +173,35 @@ function buildMessageNode(msg, idx) {
   }
 
   const bubbleWrap = el('div', { class: 'bubble-wrap' });
-  const bubble = el('div', { class: 'bubble' });
+  const bubble = el('div', { class: `bubble bubble-${msg.type || 'text'}` });
 
-  if (msg.imageUrl) {
+  // 语音类型
+  if (msg.type === 'voice') {
+    const voice = el('div', { class: 'voice-bubble' });
+    const wave = el('div', { class: 'voice-wave' });
+    for (let i = 0; i < 5; i++) {
+      wave.appendChild(el('span', { class: 'voice-bar' }));
+    }
+    voice.appendChild(wave);
+    voice.appendChild(el('span', { class: 'voice-duration' }, `${msg.duration || 0}"`));
+    voice.appendChild(el('span', { class: 'voice-label' }, '语音'));
+    // 点击展开转文字
+    const transcript = el('div', { class: 'voice-transcript', hidden: true });
+    transcript.textContent = msg.text || '';
+    voice.appendChild(transcript);
+    voice.addEventListener('click', () => {
+      transcript.hidden = !transcript.hidden;
+    });
+    bubble.appendChild(voice);
+  } else if (msg.imageUrl) {
+    // 图片
     bubble.appendChild(el('img', {
       class: 'bubble-image',
       src: msg.imageUrl,
       alt: '图片',
     }));
-  }
-
-  if (msg.text) {
+  } else if (msg.text) {
+    // 文本（含代码块）
     const parts = splitCodeBlocks(msg.text);
     parts.forEach((part) => {
       if (part.type === 'code' && /html/i.test(part.lang)) {
@@ -180,6 +218,12 @@ function buildMessageNode(msg, idx) {
 
   // 消息操作按钮
   const actions = el('div', { class: 'msg-actions' });
+  // 撤回按钮（用户消息 + AI 消息都可以）
+  const recallBtn = el('button', { class: 'msg-action-btn', title: '撤回', 'aria-label': '撤回' });
+  recallBtn.appendChild(icon('i-x', 'icon-sm'));
+  recallBtn.addEventListener('click', () => recallMessage(idx));
+  actions.appendChild(recallBtn);
+
   // AI 最后一条消息：重生成
   if (msg.role === 'ai' && idx === state.messages.length - 1) {
     const regenBtn = el('button', { class: 'msg-action-btn', title: '重新生成', 'aria-label': '重新生成' });
@@ -187,7 +231,7 @@ function buildMessageNode(msg, idx) {
     regenBtn.addEventListener('click', () => regenerate());
     actions.appendChild(regenBtn);
   }
-  // 删除按钮（所有消息）
+  // 删除按钮
   const delBtn = el('button', { class: 'msg-action-btn', title: '删除消息', 'aria-label': '删除消息' });
   delBtn.appendChild(icon('i-trash', 'icon-sm'));
   delBtn.addEventListener('click', () => deleteMessage(idx));
@@ -199,6 +243,20 @@ function buildMessageNode(msg, idx) {
   wrapper.appendChild(avatar);
   wrapper.appendChild(bubbleWrap);
   return wrapper;
+}
+
+// 撤回消息（在消息流中插入一个撤回占位，原始内容丢弃）
+function recallMessage(idx) {
+  if (idx < 0 || idx >= state.messages.length) return;
+  const target = state.messages[idx];
+  if (target.type === 'recall') return; // 已撤回
+  state.messages[idx] = {
+    role: target.role,
+    type: 'recall',
+    text: '',
+  };
+  saveState();
+  renderMessages();
 }
 
 // 删除指定消息及之后所有消息
@@ -398,29 +456,64 @@ async function fetchModelList() {
   }
 }
 
-// ============ 发送消息 ============
-async function sendMessage(text, imageDataUrl = null) {
-  const hasContent = !!(text && text.trim()) || imageDataUrl;
-  if (!hasContent) {
-    // 空文本模式：让 AI 继续 / 重新生成
-    // 找最后一条用户消息，丢弃其后的 AI 回复
-    const lastUserIdx = (() => {
-      for (let i = state.messages.length - 1; i >= 0; i--) {
-        if (state.messages[i].role === 'user') return i;
-      }
-      return -1;
-    })();
-    if (lastUserIdx < 0) return; // 没有用户消息，无法继续
-    state.messages = state.messages.slice(0, lastUserIdx + 1);
-    renderMessages();
-  } else {
-    const userMsg = { role: 'user', text: text.trim(), imageUrl: imageDataUrl };
-    state.messages.push(userMsg);
-    renderMessages();
-  }
+// ============ 消息队列（草稿系统） ============
+// pendingMessages 暂存月月输入但未发送的消息
+let pendingMessages = [];
+
+// 把当前输入框内容追加到聊天界面（不触发 AI）
+function appendDraft() {
+  const text = $('messageInput').value;
+  const hasText = text && text.trim().length > 0;
+  if (!hasText) return;
+
+  // 拆分成多行（按 Enter 分隔），每行变成一条消息
+  const lines = text.split('\n').filter((line) => line.length > 0);
+  lines.forEach((line) => {
+    pendingMessages.push({ role: 'user', type: 'text', text: line });
+  });
 
   $('messageInput').value = '';
   $('messageInput').style.height = 'auto';
+  renderDraftPreview();
+}
+
+// 渲染草稿预览（在聊天列表底部显示）
+function renderDraftPreview() {
+  let preview = $('draftPreview');
+  if (pendingMessages.length === 0) {
+    if (preview) preview.remove();
+    return;
+  }
+  if (!preview) {
+    preview = el('div', { id: 'draftPreview', class: 'draft-preview' });
+    $('messages').appendChild(preview);
+  }
+  preview.innerHTML = '';
+  pendingMessages.forEach((msg, idx) => {
+    const item = el('div', { class: 'draft-item' });
+    item.appendChild(el('span', { class: 'draft-text' }, msg.text));
+    const removeBtn = el('button', { class: 'draft-remove', 'aria-label': '删除' });
+    removeBtn.appendChild(icon('i-close', 'icon-sm'));
+    removeBtn.addEventListener('click', () => {
+      pendingMessages.splice(idx, 1);
+      renderDraftPreview();
+    });
+    item.appendChild(removeBtn);
+    preview.appendChild(item);
+  });
+}
+
+// ============ 发送消息（点 🛩️ 触发） ============
+async function sendMessage() {
+  // 先把输入框的草稿加进队列
+  appendDraft();
+
+  // 队列有内容就加进消息流
+  if (pendingMessages.length > 0) {
+    state.messages.push(...pendingMessages);
+    pendingMessages = [];
+    renderDraftPreview();
+  }
 
   $('loadingBubble').hidden = false;
   $('sendBtn').disabled = true;
@@ -428,7 +521,13 @@ async function sendMessage(text, imageDataUrl = null) {
   try {
     const apiMessages = state.messages.map((m) => {
       const role = m.role === 'ai' ? 'assistant' : m.role;
-      if (m.imageUrl) {
+      if (m.type === 'voice') {
+        return {
+          role,
+          content: `[语音 ${m.duration || 0}秒] ${m.text || ''}`,
+        };
+      }
+      if (m.type === 'image' && m.imageUrl) {
         return {
           role,
           content: [
@@ -437,36 +536,65 @@ async function sendMessage(text, imageDataUrl = null) {
           ],
         };
       }
-      return { role, content: m.text };
+      if (m.type === 'recall') {
+        return { role, content: '[撤回了一条消息]' };
+      }
+      return { role, content: m.text || '' };
     }).filter((m) => {
       if (m.role === 'user' && (m.content === '' || (Array.isArray(m.content) && !m.content.length))) return false;
       return true;
     });
 
-    let reply;
+    let rawReply;
     try {
-      reply = await callAPI(apiMessages, state.primaryModel);
+      rawReply = await callAPI(apiMessages, state.primaryModel);
     } catch (e) {
       console.warn('主模型失败，尝试备用:', e);
       if (state.fallbackModel) {
-        reply = await callAPI(apiMessages, state.fallbackModel);
+        rawReply = await callAPI(apiMessages, state.fallbackModel);
       } else {
         throw e;
       }
     }
 
-    state.messages.push({ role: 'ai', text: reply });
+    // 尝试解析 JSON（多消息格式）
+    const parsedMessages = parseAIResponse(rawReply);
+    parsedMessages.forEach((msg) => {
+      state.messages.push({ role: 'ai', ...msg });
+    });
     saveState();
     renderMessages();
   } catch (e) {
-    state.messages.push({ role: 'ai', text: `出错了：${e.message}` });
-    // 错误消息也存为 ai，渲染和后续发送时会被自动转 assistant
+    state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
     saveState();
     renderMessages();
   } finally {
     $('loadingBubble').hidden = true;
     $('sendBtn').disabled = false;
   }
+}
+
+// 解析 AI 回复（支持 JSON 多消息格式）
+function parseAIResponse(raw) {
+  // 尝试提取 JSON
+  const jsonMatch = raw.match(/\{[\s\S]*?"messages"[\s\S]*?\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.messages && Array.isArray(parsed.messages)) {
+        return parsed.messages.map((m) => ({
+          type: m.type || 'text',
+          text: m.content || '',
+          duration: m.duration,
+          sticker: m.sticker,
+        }));
+      }
+    } catch (e) {
+      // JSON 解析失败，走下面的 fallback
+    }
+  }
+  // 兼容老格式：纯文本
+  return [{ type: 'text', text: raw }];
 }
 
 // ============ 设置面板 ============
@@ -577,29 +705,124 @@ function handleMoreAction(action) {
     case 'image':
       $('imageInput').click();
       break;
+    case 'voice':
+      openVoicePanel();
+      break;
+    case 'sticker':
+      toast('表情包库 v0.2 上线，敬请期待');
+      break;
     case 'camera':
-      toast('拍照功能 v0.2 上线，敬请期待');
+      toast('拍照功能 v0.3 上线');
       break;
     case 'file':
-      toast('文件功能 v0.2 上线');
-      break;
-    case 'mic':
-      toast('语音消息 v0.2 上线');
+      toast('文件功能 v0.3 上线');
       break;
     case 'call':
       toast('实时通话 v0.3 上线');
       break;
     case 'game':
-      toast('小游戏接入 v0.2 上线');
+      toast('小游戏接入 v0.3 上线');
       break;
     case 'transfer':
-      toast('转账功能 v0.2 上线');
+      toast('转账功能 v0.3 上线');
       break;
     case 'location':
       toast('位置分享 v0.3 上线');
       break;
+    case 'delete-multiple':
+      enterMultiDeleteMode();
+      break;
   }
   toggleMoreMenu(false);
+}
+
+// ============ 语音编辑弹窗 ============
+function openVoicePanel() {
+  $('voiceDuration').value = 3;
+  $('voiceText').value = '';
+  $('voicePanel').hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('voiceText').focus(), 100);
+}
+
+function closeVoicePanel() {
+  $('voicePanel').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function confirmVoice() {
+  const duration = parseInt($('voiceDuration').value) || 3;
+  const text = $('voiceText').value.trim();
+  if (!text) {
+    toast('语音内容不能为空');
+    return;
+  }
+  pendingMessages.push({ role: 'user', type: 'voice', duration, text });
+  closeVoicePanel();
+  renderDraftPreview();
+}
+
+// ============ 多选删除模式 ============
+let multiDeleteMode = false;
+let multiDeleteSelected = new Set();
+
+function enterMultiDeleteMode() {
+  if (state.messages.length === 0) {
+    toast('没有消息可删除');
+    return;
+  }
+  multiDeleteMode = true;
+  multiDeleteSelected.clear();
+  $('multiDeleteBar').hidden = false;
+  document.body.style.overflow = 'hidden';
+  // 给所有消息加 class
+  document.querySelectorAll('.message').forEach((node) => {
+    node.classList.add('multi-select-active');
+    node.addEventListener('click', toggleMultiSelect);
+  });
+  updateMultiDeleteBtn();
+}
+
+function toggleMultiSelect(e) {
+  // 阻止按钮的冒泡（撤回、删除等按钮不该触发选择）
+  if (e.target.closest('.msg-action-btn')) return;
+  const idx = parseInt(this.dataset.idx);
+  if (isNaN(idx)) return;
+  if (multiDeleteSelected.has(idx)) {
+    multiDeleteSelected.delete(idx);
+  } else {
+    multiDeleteSelected.add(idx);
+  }
+  this.classList.toggle('multi-selected');
+  updateMultiDeleteBtn();
+}
+
+function updateMultiDeleteBtn() {
+  const btn = $('multiDeleteConfirm');
+  btn.textContent = `删除选中 (${multiDeleteSelected.size})`;
+  btn.disabled = multiDeleteSelected.size === 0;
+}
+
+function exitMultiDeleteMode() {
+  multiDeleteMode = false;
+  multiDeleteSelected.clear();
+  $('multiDeleteBar').hidden = true;
+  document.body.style.overflow = '';
+  document.querySelectorAll('.message').forEach((node) => {
+    node.classList.remove('multi-select-active', 'multi-selected');
+    node.removeEventListener('click', toggleMultiSelect);
+  });
+}
+
+function confirmMultiDelete() {
+  if (multiDeleteSelected.size === 0) return;
+  if (!confirm(`删除选中的 ${multiDeleteSelected.size} 条消息？`)) return;
+  // 倒序删除，避免索引错位
+  const sortedIdxs = [...multiDeleteSelected].sort((a, b) => b - a);
+  sortedIdxs.forEach((idx) => state.messages.splice(idx, 1));
+  exitMultiDeleteMode();
+  saveState();
+  renderMessages();
 }
 
 // 简易 toast
@@ -659,20 +882,21 @@ function init() {
     if (useEl) useEl.setAttribute('href', keyVisible ? '#i-eye-off' : '#i-eye');
   });
 
-  // 发送
+  // 发送（🛩️）—— 触发 AI 回复
   $('sendBtn').addEventListener('click', () => {
-    const text = $('messageInput').value.trim();
-    if (text) sendMessage(text);
+    sendMessage();
   });
 
-  // Enter 发送，Shift+Enter 换行
+  // Enter = 把当前行加到聊天列表（不触发 AI）
+  // Shift+Enter = 真的换行（在同一气泡内编辑）
+  // Ctrl/Command+Enter = 直接发送
   $('messageInput').addEventListener('keydown', (e) => {
-    // Enter 直接发送（用户输入完所有内容后点发送）
-    // Shift+Enter 换行（如果用户需要多行编辑可以换行后再继续输入）
-    // 也兼容 Ctrl+Enter 发送（有些用户习惯这个）
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      $('sendBtn').click();
+      appendDraft();
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      sendMessage();
     }
   });
 
@@ -684,6 +908,17 @@ function init() {
 
   // 表情包按钮
   $('stickerBtn').addEventListener('click', handleSticker);
+
+  // 语音按钮
+  $('voiceBtn').addEventListener('click', openVoicePanel);
+  $('closeVoice').addEventListener('click', closeVoicePanel);
+  $('voiceMask').addEventListener('click', closeVoicePanel);
+  $('voiceCancel').addEventListener('click', closeVoicePanel);
+  $('voiceConfirm').addEventListener('click', confirmVoice);
+
+  // 多选删除
+  $('multiDeleteCancel').addEventListener('click', exitMultiDeleteMode);
+  $('multiDeleteConfirm').addEventListener('click', confirmMultiDelete);
 
   // 加号菜单
   $('moreBtn').addEventListener('click', (e) => {
