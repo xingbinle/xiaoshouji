@@ -228,6 +228,8 @@ a {
   -webkit-overflow-scrolling: touch;
   padding: var(--gap-lg) var(--gap-md) var(--gap-md);
   scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 欢迎屏 */
@@ -599,6 +601,23 @@ a {
 
 .send-btn:active {
   transform: scale(0.92);
+}
+
+/* 停止状态 */
+.send-btn.is-stop {
+  background: #B86B6B;
+  box-shadow: 0 2px 8px rgba(184, 107, 107, 0.45);
+  animation: stop-pulse 1.5s var(--ease-in-out) infinite;
+}
+
+.send-btn.is-stop:hover {
+  background: #A05555;
+  box-shadow: 0 3px 12px rgba(184, 107, 107, 0.55);
+}
+
+@keyframes stop-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .sticker-btn,
