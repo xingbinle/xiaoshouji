@@ -908,7 +908,9 @@ function confirmMultiDelete() {
 
 // 同步 loadingBubble 显示状态
 function syncLoadingBubble() {
-  $('loadingBubble').hidden = !state.aiGenerating;
+  const el = $('loadingBubble');
+  el.hidden = !state.aiGenerating;
+  el.style.display = state.aiGenerating ? 'flex' : 'none';
 }
 
 // ============ 简易 toast
@@ -947,6 +949,15 @@ function handleSticker() {
 // ============ 初始化 ============
 function init() {
   loadState();
+  // 页面初始化时，强制重置 aiGenerating（页面刷新后状态不可能还在生成）
+  state.aiGenerating = false;
+  // 用 inline style 强制隐藏，绕过任何 CSS 残留问题
+  $('loadingBubble').hidden = true;
+  $('loadingBubble').style.display = 'none';
+  // 多选条也强制隐藏（防御性写法）
+  $('multiDeleteBar').hidden = true;
+  $('multiDeleteBar').style.display = 'none';
+  multiDeleteMode = false;
   renderMessages();
   updateStatus();
 
