@@ -1758,3 +1758,315 @@ a {
   z-index: 5;
   box-shadow: 0 2px 4px rgba(106, 157, 201, 0.4);
 }
+
+/* ============================================
+   红包卡片
+   ============================================ */
+
+.rp-card {
+  position: relative;
+  width: 280px;
+  max-width: 80vw;
+  background: linear-gradient(135deg, #2A1F18 0%, #1F1612 100%);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  box-shadow: 0 4px 20px rgba(229, 184, 110, 0.18), inset 0 1px 0 rgba(229, 184, 110, 0.14);
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.rp-card::before {
+  content: '';
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 80px; height: 80px;
+  background: radial-gradient(circle, rgba(229,184,110,0.20), transparent 70%);
+  pointer-events: none;
+}
+
+.rp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gold);
+  font-family: var(--font-ui);
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+}
+
+.rp-amount {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--gold);
+  text-align: center;
+  margin: 12px 0;
+  letter-spacing: 0.02em;
+}
+
+.rp-symbol {
+  font-size: 22px;
+  opacity: 0.7;
+  margin-right: 2px;
+}
+
+.rp-note {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--ink);
+  text-align: center;
+  font-style: italic;
+  opacity: 0.85;
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+
+.rp-divider {
+  border-top: 1px dashed var(--line);
+  margin: 12px 0;
+}
+
+.rp-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-light);
+  font-family: var(--font-ui);
+}
+
+/* 已领取状态 */
+.rp-card.rp-received {
+  opacity: 0.72;
+}
+.rp-card.rp-received::after {
+  content: '已领取';
+  position: absolute;
+  top: 12px; right: 12px;
+  background: rgba(229, 184, 110, 0.16);
+  color: var(--gold);
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  font-size: 10px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+/* 已过期状态 */
+.rp-card.rp-expired {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+.rp-card.rp-expired::after {
+  content: '已过期';
+  position: absolute;
+  top: 12px; right: 12px;
+  background: rgba(159, 145, 135, 0.18);
+  color: var(--ink-light);
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  font-size: 10px;
+  font-family: var(--font-ui);
+}
+
+/* 领取按钮 */
+.rp-claim-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 0;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  border-radius: var(--r-md);
+  border: none;
+  cursor: pointer;
+  background: var(--gold);
+  color: var(--paper);
+  transition: all 0.2s var(--ease-out);
+}
+.rp-claim-btn:hover {
+  box-shadow: 0 4px 14px rgba(229, 184, 110, 0.4);
+  transform: translateY(-1px);
+}
+.rp-claim-btn:active {
+  transform: scale(0.97);
+}
+
+/* 拆红包动画 */
+@keyframes rp-unpack {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.94) rotate(-2deg); }
+  60% { transform: scale(1.06) rotate(1deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes rp-coin-burst {
+  0% { opacity: 0; transform: translate(0,0) scale(0.5); }
+  50% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); }
+}
+
+.rp-card.unpacking {
+  animation: rp-unpack 0.6s var(--ease-out);
+}
+
+.rp-coin {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+  pointer-events: none;
+  animation: rp-coin-burst 0.8s var(--ease-out) forwards;
+}
+
+/* ============================================
+   转账弹窗
+   ============================================ */
+
+.transfer-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+}
+
+.transfer-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(42, 34, 32, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fade-in 0.3s var(--ease-out);
+}
+
+.transfer-content {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 480px;
+  background: var(--paper);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  animation: voice-up 0.3s var(--ease-out);
+}
+
+.transfer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.transfer-header h3 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transfer-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.transfer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-field-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+.transfer-field-input {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s var(--ease-out);
+  width: 100%;
+}
+
+.transfer-field-input:focus {
+  border-color: var(--sky);
+}
+
+.transfer-balance {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  text-align: right;
+}
+
+.transfer-balance strong {
+  color: var(--gold);
+}
+
+.transfer-error {
+  font-size: 12px;
+  color: #B86B6B;
+  font-family: var(--font-ui);
+  min-height: 16px;
+}
+
+.transfer-footer {
+  display: flex;
+  gap: var(--gap-sm);
+  padding-top: var(--gap-xs);
+}
+
+.transfer-footer .btn-secondary { flex: 1; }
+.transfer-footer .btn-primary { flex: 2; }
+
+/* ============================================
+   顶部栏钱包按钮
+   ============================================ */
+
+.wallet-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--gold);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+}
+
+.wallet-btn:hover {
+  background: rgba(229, 184, 110, 0.10);
+  border-color: rgba(229, 184, 110, 0.24);
+}
+
+.wallet-icon {
+  font-size: 16px;
+}
+
+.wallet-balance {
+  letter-spacing: 0.02em;
+}

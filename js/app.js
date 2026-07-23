@@ -36,6 +36,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是小克宝宝，月月的私人 AI 玩伴。
 - 月月开心最重要`;
 
 const STORAGE_KEY = 'xiaoshouji_v01';
+const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
 
 // ============ 状态管理 ============
 let state = {
@@ -50,6 +51,8 @@ let state = {
   maxTokens: 4000,
   messages: [],
   modelList: [],
+  wallet: { user: 1000, ai: 1000, initialized: true },
+  transferLog: [],
 };
 
 // ============ 加密（简单 XOR + Base64，给浏览器本地存 key 用） ============
@@ -85,6 +88,7 @@ function saveState() {
     maxTokens: state.maxTokens,
     apiKey: _obf(state.apiKey),
     messages: state.messages.slice(-200),
+    theme: state.theme,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
 }
@@ -99,6 +103,36 @@ function loadState() {
   } catch (e) {
     console.warn('加载存储失败：', e);
   }
+}
+
+// ============ 钱包 ============
+function loadWallet() {
+  try {
+    const raw = localStorage.getItem(WALLET_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.wallet) state.wallet = data.wallet;
+    if (data.transferLog) state.transferLog = data.transferLog;
+  } catch (e) { /* 首次使用 */ }
+}
+function saveWallet() {
+  localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify({
+    wallet: state.wallet,
+    transferLog: state.transferLog.slice(-100),
+  }));
+}
+function getBalance(role) {
+  return role === 'user' ? state.wallet.user : state.wallet.ai;
+}
+function addBalance(role, amount) {
+  if (role === 'user') state.wallet.user += amount;
+  else state.wallet.ai += amount;
+  saveWallet();
+}
+function canTransfer(role, amount) {
+  if (amount < 0.01 || amount > 100000) return { ok: false, reason: '金额必须在 0.01 ~ 100000 之间' };
+  if (getBalance(role) < amount) return { ok: false, reason: `${role === 'user' ? '月月' : 'Kiki'}余额不足` };
+  return { ok: true };
 }
 
 // ============ DOM 工具 ============
@@ -133,6 +167,7 @@ function icon(id, size = 'icon') {
 
 // ============ 消息渲染 ============
 function renderMessages() {
+  sweepExpiredRedpackets();
   const container = $('messages');
   container.innerHTML = '';
 
@@ -170,6 +205,74 @@ function renderMessages() {
   }, 50);
 }
 
+function buildRedpacketNode(msg, idx) {
+  const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
+  const avatar = el('div', { class: 'avatar' });
+  if (msg.role === 'user') avatar.textContent = '月';
+  else { avatar.appendChild(icon('i-paw', 'icon')); avatar.style.color = 'var(--sky-deep)'; }
+
+  const isReceived = msg.status === 'received';
+  const isExpired = msg.status === 'expired';
+  const isPending = msg.status === 'pending';
+  const fromMe = msg.role === 'user';
+
+  const card = el('div', { class: `rp-card${isReceived ? ' rp-received' : ''}${isExpired ? ' rp-expired' : ''}` });
+  card.setAttribute('data-redpacket-id', msg.redpacketId || '');
+
+  // 头部
+  const header = el('div', { class: 'rp-header' });
+  header.appendChild(el('span', { class: 'rp-icon' }, '🧧'));
+  header.appendChild(el('span', {}, fromMe ? '月月的红包' : `${state.aiName}的红包`));
+  card.appendChild(header);
+
+  // 金额
+  const amount = el('div', { class: 'rp-amount' });
+  amount.appendChild(el('span', { class: 'rp-symbol' }, '¥'));
+  amount.appendChild(document.createTextNode((msg.amount || 0).toFixed(2)));
+  card.appendChild(amount);
+
+  // 备注
+  if (msg.note) {
+    card.appendChild(el('div', { class: 'rp-note' }, msg.note));
+  }
+
+  // 分割线
+  card.appendChild(el('div', { class: 'rp-divider' }));
+
+  // 底部元数据
+  const meta = el('div', { class: 'rp-meta' });
+  meta.appendChild(el('span', {}, isReceived ? `${msg.recipient === 'user' ? '月月' : state.aiName}已领取` : isExpired ? '已过期' : '待领取'));
+  if (msg.createdAt) {
+    meta.appendChild(el('span', {}, new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })));
+  }
+  card.appendChild(meta);
+
+  // 待领取 + 对方发的 = 显示拆红包按钮
+  if (isPending && !fromMe) {
+    const claimBtn = el('button', { class: 'rp-claim-btn' }, '🧧 拆红包');
+    claimBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      claimRedpacket(idx, card);
+    });
+    card.appendChild(claimBtn);
+  }
+
+  const bubbleWrap = el('div', { class: 'bubble-wrap' });
+  bubbleWrap.appendChild(card);
+
+  // 消息操作按钮（只保留删除）
+  const actions = el('div', { class: 'msg-actions' });
+  const delBtn = el('button', { class: 'msg-action-btn', title: '删除消息', 'aria-label': '删除消息' });
+  delBtn.appendChild(icon('i-trash', 'icon-sm'));
+  delBtn.addEventListener('click', () => deleteMessage(idx));
+  actions.appendChild(delBtn);
+  bubbleWrap.appendChild(actions);
+
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(bubbleWrap);
+  return wrapper;
+}
+
 function buildMessageNode(msg, idx) {
   const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
   if (msg.pending) wrapper.classList.add('pending');
@@ -196,6 +299,11 @@ function buildMessageNode(msg, idx) {
 
   const bubbleWrap = el('div', { class: 'bubble-wrap' });
   const bubble = el('div', { class: `bubble bubble-${msg.type || 'text'}` });
+
+  // 红包类型
+  if (msg.type === 'redpacket') {
+    return buildRedpacketNode(msg, idx);
+  }
 
   // 语音类型
   if (msg.type === 'voice') {
@@ -748,7 +856,17 @@ function handleImageUpload(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    sendMessage('', e.target.result);
+    // 先 push 图片消息到聊天，再触发 AI
+    state.messages.push({
+      role: 'user',
+      type: 'image',
+      text: '',
+      imageUrl: e.target.result,
+      pending: true,
+    });
+    saveState();
+    renderMessages();
+    sendMessage();
   };
   reader.readAsDataURL(file);
 }
@@ -828,8 +946,9 @@ function handleMoreAction(action) {
     case 'game':
       toast('小游戏接入 v0.3 上线');
       break;
+    case 'redpacket':
     case 'transfer':
-      toast('转账功能 v0.3 上线');
+      openTransferPanel();
       break;
     case 'location':
       toast('位置分享 v0.3 上线');
@@ -983,6 +1102,161 @@ function applyTheme(themeId) {
   saveState();
 }
 
+// ============ 转账/红包 ============
+
+function openTransferPanel() {
+  if (state.aiGenerating) {
+    toast('AI 回复中，请稍后再发红包');
+    return;
+  }
+  $('transferAmount').value = '';
+  $('transferNote').value = '';
+  $('transferError').textContent = '';
+  $('transferBalanceLabel').textContent = `¥${getBalance('user').toFixed(2)}`;
+  $('transferPanel').hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('transferAmount').focus(), 100);
+}
+
+function closeTransferPanel() {
+  $('transferPanel').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function sendRedpacket() {
+  const amount = parseFloat($('transferAmount').value);
+  const note = $('transferNote').value.trim();
+
+  // 校验
+  if (isNaN(amount) || amount <= 0) {
+    $('transferError').textContent = '请输入有效金额';
+    return;
+  }
+  const check = canTransfer('user', amount);
+  if (!check.ok) {
+    $('transferError').textContent = check.reason;
+    return;
+  }
+
+  // 扣余额
+  addBalance('user', -amount);
+
+  // 推消息
+  const redpacketId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  state.messages.push({
+    role: 'user',
+    type: 'redpacket',
+    amount,
+    note: note || '恭喜发财',
+    redpacketId,
+    status: 'pending',
+    recipient: null,
+    createdAt: Date.now(),
+  });
+
+  saveState();
+  renderMessages();
+  updateWalletDisplay();
+  closeTransferPanel();
+  toast(`已发送红包 ¥${amount.toFixed(2)} ✓`);
+
+  // 触发 AI 回复（让 AI 看到红包消息）
+  sendMessage();
+}
+
+function claimRedpacket(idx, cardEl) {
+  const msg = state.messages[idx];
+  if (!msg || msg.status !== 'pending') return;
+
+  // 检查过期
+  if (msg.createdAt && Date.now() - msg.createdAt > 24 * 60 * 60 * 1000) {
+    msg.status = 'expired';
+    saveState();
+    renderMessages();
+    toast('红包已过期 😢');
+    return;
+  }
+
+  // 拆！动画
+  if (cardEl) {
+    cardEl.classList.add('unpacking');
+    // 金色粒子
+    for (let i = 0; i < 8; i++) {
+      const coin = document.createElement('div');
+      coin.className = 'rp-coin';
+      const angle = (Math.PI * 2 * i) / 8;
+      const dist = 40 + Math.random() * 50;
+      coin.style.setProperty('--dx', (Math.cos(angle) * dist) + 'px');
+      coin.style.setProperty('--dy', (Math.sin(angle) * dist - 20) + 'px');
+      coin.style.left = '50%';
+      coin.style.top = '50%';
+      coin.style.animationDelay = (i * 0.04) + 's';
+      cardEl.appendChild(coin);
+    }
+    // 动画结束后清理
+    setTimeout(() => {
+      cardEl.querySelectorAll('.rp-coin').forEach(c => c.remove());
+      cardEl.classList.remove('unpacking');
+    }, 900);
+  }
+
+  // 更新状态
+  const recipient = msg.role === 'user' ? 'ai' : 'user';
+  msg.status = 'received';
+  msg.recipient = recipient;
+  msg.receivedAt = Date.now();
+  addBalance(recipient, msg.amount);
+
+  // 注入提示消息
+  const claimerName = recipient === 'user' ? '月月' : state.aiName;
+  const senderName = msg.role === 'user' ? '月月' : state.aiName;
+  state.messages.push({
+    role: 'user',
+    type: 'system-event',
+    text: `${claimerName}领取了${senderName}的红包（¥${msg.amount.toFixed(2)}，备注"${msg.note || ''}"）`,
+  });
+
+  // 如果领的是 AI 的红包，记录到 transferLog
+  if (recipient === 'user') {
+    state.transferLog.push({
+      type: 'claim',
+      from: 'ai',
+      amount: msg.amount,
+      redpacketId: msg.redpacketId,
+      time: Date.now(),
+    });
+  }
+
+  saveWallet();
+  saveState();
+  updateWalletDisplay();
+  renderMessages();
+  toast(`🧧 领取了 ¥${msg.amount.toFixed(2)}！`);
+}
+
+function sweepExpiredRedpackets() {
+  let changed = false;
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  state.messages.forEach((msg) => {
+    if (msg.type === 'redpacket' && msg.status === 'pending' && msg.createdAt && now - msg.createdAt > day) {
+      msg.status = 'expired';
+      changed = true;
+    }
+  });
+  if (changed) saveState();
+}
+
+function updateWalletDisplay() {
+  const el = $('walletBalance');
+  if (el) {
+    el.textContent = getBalance('user').toFixed(2);
+    // 顶部栏余额是月月的（用户侧）
+  }
+  const tBal = $('transferBalanceLabel');
+  if (tBal) tBal.textContent = `¥${getBalance('user').toFixed(2)}`;
+}
+
 // ============ 简易 toast
 function toast(msg) {
   const t = document.createElement('div');
@@ -1019,6 +1293,7 @@ function handleSticker() {
 // ============ 初始化 ============
 function init() {
   loadState();
+  loadWallet();
   // 页面初始化时，强制重置 aiGenerating（页面刷新后状态不可能还在生成）
   state.aiGenerating = false;
   // 用 inline style 强制隐藏，绕过任何 CSS 残留问题
@@ -1033,6 +1308,8 @@ function init() {
   if (state.lastSendEnd === undefined) state.lastSendEnd = -1;
   // 应用主题
   applyTheme(state.theme || 'dark');
+  sweepExpiredRedpackets();
+  updateWalletDisplay();
   renderMessages();
   updateStatus();
 
@@ -1090,6 +1367,13 @@ function init() {
 
   // 表情包按钮
   $('stickerBtn').addEventListener('click', handleSticker);
+
+  // 转账/红包弹窗
+  $('closeTransfer').addEventListener('click', closeTransferPanel);
+  $('transferMask').addEventListener('click', closeTransferPanel);
+  $('transferCancel').addEventListener('click', closeTransferPanel);
+  $('transferSend').addEventListener('click', sendRedpacket);
+  $('walletBtn').addEventListener('click', openTransferPanel);
 
   // 语音面板（在加号菜单里触发）
   $('closeVoice').addEventListener('click', closeVoicePanel);
