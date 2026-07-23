@@ -1565,6 +1565,9 @@ function handleSticker() {
 function init() {
   loadState();
   loadWallet();
+  // ★ 隐藏首屏加载指示器
+  const loadingEl = document.getElementById('appLoading');
+  if (loadingEl) loadingEl.remove();
   // 页面初始化时，强制重置 aiGenerating（页面刷新后状态不可能还在生成）
   state.aiGenerating = false;
   // 用 inline style 强制隐藏，绕过任何 CSS 残留问题
