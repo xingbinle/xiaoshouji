@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#A8C8E8">
+  <meta name="theme-color" content="#1B1614">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="小手机">
@@ -12,6 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon-192.svg">
   <link rel="apple-touch-icon" href="assets/icon-512.svg">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes/dark.css" id="themeDark" disabled>
 </head>
 <body>
 
@@ -222,15 +223,11 @@
 
   <!-- 聊天区 -->
   <main class="chat-container" id="chatContainer">
-    <div class="welcome-screen" id="welcomeScreen">
-      <div class="welcome-card">
-        <div class="welcome-ornament" aria-hidden="true">
-          <svg class="icon"><use href="#i-paw"/></svg>
-        </div>
-        <h2 class="welcome-title">你好呀</h2>
-        <p class="welcome-text">我是小克宝宝，你的私人 AI 玩伴</p>
-        <span class="welcome-tip">点击右上角齿轮配置 API 后开始聊天</span>
+    <div class="welcome-bg" id="welcomeScreen" aria-hidden="true">
+      <div class="welcome-paw">
+        <svg class="icon"><use href="#i-paw"/></svg>
       </div>
+      <h2 class="welcome-name">Kiki</h2>
     </div>
 
     <div class="messages" id="messages"></div>
@@ -245,8 +242,7 @@
   <!-- 输入区 -->
   <footer class="input-area" style="position: relative;">
     <button class="send-btn" id="sendBtn" aria-label="发送">
-      <svg class="icon send-icon"><use href="#i-send"/></svg>
-      <svg class="icon stop-icon" hidden><use href="#i-stop"/></svg>
+      <svg class="icon"><use href="#i-send"/></svg>
     </button>
 
     <textarea
@@ -422,6 +418,21 @@
               <input type="number" id="maxTokens" class="field-input" min="100" max="32000" value="4000">
             </label>
           </div>
+        </section>
+
+        <section class="settings-group">
+          <h3 class="settings-group-title">
+            <svg class="icon"><use href="#i-eye"/></svg>
+            美化预设
+          </h3>
+          <label class="field">
+            <span class="field-label">主题</span>
+            <select id="themeSelect" class="field-input">
+              <option value="dark">暗色 · Kiki（默认）</option>
+              <option value="light">亮色 · 编辑感</option>
+            </select>
+            <span class="field-hint">切换后立即生效，保存到本地</span>
+          </label>
         </section>
 
         <section class="settings-group">

@@ -326,21 +326,28 @@ function deleteMessage(idx) {
   renderMessages();
 }
 
-// 重新生成最后一条 AI 消息
+// 重新生成：只重做"最后一次 sendMessage 产生的 AI 回复"，保留更早的内容
 function regenerate() {
-  if (state.messages.length === 0) return;
-  const last = state.messages[state.messages.length - 1];
-  if (last.role !== 'ai') return;
-  // 取最后一条用户消息，丢弃其后的 AI 回复
-  let lastUserIdx = -1;
-  for (let i = state.messages.length - 1; i >= 0; i--) {
-    if (state.messages[i].role === 'user') { lastUserIdx = i; break; }
+  if (state.aiGenerating) {
+    toast('生成中，稍等');
+    return;
   }
-  if (lastUserIdx < 0) return;
-  state.messages = state.messages.slice(0, lastUserIdx + 1);
+  if (state.messages.length === 0) return;
+  if (state.lastSendBoundary < 0 || state.lastSendBoundary > state.messages.length) {
+    // 兜底：旧数据可能没有 boundary，找最后一条 user 截断
+    let lastUserIdx = -1;
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+      if (state.messages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx < 0) return;
+    state.messages = state.messages.slice(0, lastUserIdx + 1);
+  } else {
+    // ★ 关键：只截到 lastSendBoundary，保留之前所有内容
+    state.messages = state.messages.slice(0, state.lastSendBoundary);
+  }
+  saveState();
   renderMessages();
-  // 触发重新生成（空文本模式）
-  sendMessage('');
+  sendMessage();
 }
 
 // ============ 代码块分割 ============
@@ -555,10 +562,12 @@ async function sendMessage() {
     if (m.pending) m.pending = false;
   });
 
+  // ★ 关键：记录"本次 sendMessage 的起点边界"，用于重生成只截本段
+  state.lastSendBoundary = state.messages.length;
+
   $('sendBtn').disabled = true;
   state.aiGenerating = true;
   syncLoadingBubble();
-  updateSendButton();
 
   try {
     const apiMessages = state.messages.map((m) => {
@@ -594,7 +603,7 @@ async function sendMessage() {
       rawReply = await callAPI(apiMessages, state.primaryModel);
     } catch (e) {
       if (e.name === 'AbortError') {
-        // 用户主动停止，不算错误
+        // 用户主动停止
         return;
       }
       console.warn('主模型失败，尝试备用:', e);
@@ -613,11 +622,14 @@ async function sendMessage() {
     parsedMessages.forEach((msg) => {
       state.messages.push({ role: 'ai', ...msg });
     });
+    // ★ 记录本次 AI 回复结束位置
+    state.lastSendEnd = state.messages.length;
     saveState();
     renderMessages();
   } catch (e) {
     if (e.name !== 'AbortError') {
       state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
+      state.lastSendEnd = state.messages.length;
       saveState();
       renderMessages();
     }
@@ -625,7 +637,6 @@ async function sendMessage() {
     state.aiGenerating = false;
     currentAbortController = null;
     $('sendBtn').disabled = false;
-    updateSendButton();
     syncLoadingBubble();
     renderMessages();
   }
@@ -635,25 +646,9 @@ async function sendMessage() {
 function stopGeneration() {
   if (currentAbortController) {
     currentAbortController.abort();
+    // 停止时让 end == boundary（标记"没产生新回复"）
+    state.lastSendEnd = state.lastSendBoundary;
     toast('已停止生成');
-  }
-}
-
-// 更新发送按钮（生成中显示停止）
-function updateSendButton() {
-  const btn = $('sendBtn');
-  const sendIcon = btn.querySelector('.send-icon');
-  const stopIcon = btn.querySelector('.stop-icon');
-  if (state.aiGenerating) {
-    btn.classList.add('is-stop');
-    btn.setAttribute('aria-label', '停止生成');
-    sendIcon.hidden = true;
-    stopIcon.hidden = false;
-  } else {
-    btn.classList.remove('is-stop');
-    btn.setAttribute('aria-label', '发送');
-    sendIcon.hidden = false;
-    stopIcon.hidden = true;
   }
 }
 
@@ -714,6 +709,8 @@ function openSettings() {
   $('systemPrompt').value = state.systemPrompt;
   $('temperature').value = state.temperature;
   $('maxTokens').value = state.maxTokens;
+  const themeSelect = $('themeSelect');
+  if (themeSelect) themeSelect.value = state.theme || 'dark';
   $('settingsPanel').hidden = false;
   document.body.style.overflow = 'hidden';
 }
@@ -733,6 +730,8 @@ function saveSettings() {
   state.systemPrompt = $('systemPrompt').value;
   state.temperature = parseFloat($('temperature').value) || 0.8;
   state.maxTokens = parseInt($('maxTokens').value) || 4000;
+  const themeSelect = $('themeSelect');
+  if (themeSelect) applyTheme(themeSelect.value);
   saveState();
   updateStatus();
   // 保存设置后不关闭面板，让用户继续修改
@@ -959,13 +958,29 @@ function syncLoadingBubble() {
     el.hidden = false;
     el.removeAttribute('hidden');
     el.style.display = 'flex';
-    el.classList.add('active');
+    el.classList.add('active', 'interactive');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', '停止生成');
   } else {
     el.hidden = true;
     el.setAttribute('hidden', '');
     el.style.display = 'none';
-    el.classList.remove('active');
+    el.classList.remove('active', 'interactive');
+    el.removeAttribute('aria-label');
   }
+}
+
+// ============ 主题切换 ============
+function applyTheme(themeId) {
+  // themeId: 'dark' | 'light'
+  document.documentElement.setAttribute('data-theme', themeId);
+  const themeLink = $('themeDark');
+  if (themeLink) {
+    // dark 主题：启用 dark.css；light 主题：禁用 dark.css（用 style.css 默认值）
+    themeLink.disabled = (themeId !== 'dark');
+  }
+  state.theme = themeId;
+  saveState();
 }
 
 // ============ 简易 toast
@@ -1013,6 +1028,11 @@ function init() {
   $('multiDeleteBar').hidden = true;
   $('multiDeleteBar').style.display = 'none';
   multiDeleteMode = false;
+  // 初始化 lastSendBoundary（持久化不存）
+  if (state.lastSendBoundary === undefined) state.lastSendBoundary = -1;
+  if (state.lastSendEnd === undefined) state.lastSendEnd = -1;
+  // 应用主题
+  applyTheme(state.theme || 'dark');
   renderMessages();
   updateStatus();
 
@@ -1034,13 +1054,19 @@ function init() {
     if (useEl) useEl.setAttribute('href', keyVisible ? '#i-eye-off' : '#i-eye');
   });
 
-  // 发送/停止按钮 —— 生成中点击停止，否则发送
+  // 发送按钮 —— 🛩️ 永远是纸飞机
   $('sendBtn').addEventListener('click', () => {
     if (state.aiGenerating) {
+      // 兜底：AI 思考时点 🛩️ 也能停
       stopGeneration();
     } else {
       sendMessage();
     }
+  });
+
+  // loadingBubble 自身可点击停止
+  $('loadingBubble').addEventListener('click', () => {
+    if (state.aiGenerating) stopGeneration();
   });
 
   // Enter = 把当前行加到聊天列表（不触发 AI）
