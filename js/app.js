@@ -909,8 +909,7 @@ function init() {
   // 表情包按钮
   $('stickerBtn').addEventListener('click', handleSticker);
 
-  // 语音按钮
-  $('voiceBtn').addEventListener('click', openVoicePanel);
+  // 语音面板（在加号菜单里触发）
   $('closeVoice').addEventListener('click', closeVoicePanel);
   $('voiceMask').addEventListener('click', closeVoicePanel);
   $('voiceCancel').addEventListener('click', closeVoicePanel);
