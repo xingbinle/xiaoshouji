@@ -212,6 +212,10 @@
     <button class="icon-btn" id="settingsBtn" aria-label="设置">
       <svg class="icon"><use href="#i-gear"/></svg>
     </button>
+    <button class="wallet-btn" id="walletBtn" aria-label="钱包" title="钱包">
+      <span class="wallet-icon">🧧</span>
+      <span class="wallet-balance" id="walletBalance">1,000.00</span>
+    </button>
   </header>
 
   <!-- 多选删除模式（仅在 multiDeleteMode=true 时由 JS 显示，绝不默认显示） -->
@@ -290,6 +294,10 @@
         <button class="more-menu-item" data-action="game">
           <svg class="icon"><use href="#i-game"/></svg>
           <span>游戏</span>
+        </button>
+        <button class="more-menu-item" data-action="redpacket">
+          <svg class="icon"><use href="#i-transfer"/></svg>
+          <span>红包</span>
         </button>
         <button class="more-menu-item" data-action="transfer">
           <svg class="icon"><use href="#i-transfer"/></svg>
@@ -516,6 +524,35 @@
         <div class="button-row">
           <button class="btn-secondary" id="voiceCancel">取消</button>
           <button class="btn-primary" id="voiceConfirm">加入聊天</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 转账/红包弹窗 -->
+  <div class="transfer-panel" id="transferPanel" hidden>
+    <div class="transfer-mask" id="transferMask"></div>
+    <div class="transfer-content">
+      <div class="transfer-header">
+        <h3>🧧 发红包</h3>
+        <button class="close-btn" id="closeTransfer" aria-label="关闭">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="transfer-body">
+        <label class="transfer-field">
+          <span class="transfer-field-label">金额（元）</span>
+          <input type="number" class="transfer-field-input" id="transferAmount" placeholder="0.00" step="0.01" min="0.01" max="100000" inputmode="decimal">
+        </label>
+        <label class="transfer-field">
+          <span class="transfer-field-label">备注（选填）</span>
+          <input type="text" class="transfer-field-input" id="transferNote" placeholder="说点什么吧" maxlength="30">
+        </label>
+        <div class="transfer-error" id="transferError"></div>
+        <div class="transfer-balance">当前余额 <strong id="transferBalanceLabel">¥1,000.00</strong></div>
+        <div class="transfer-footer">
+          <button class="btn-secondary" id="transferCancel">取消</button>
+          <button class="btn-primary" id="transferSend">🧧 发送红包</button>
         </div>
       </div>
     </div>

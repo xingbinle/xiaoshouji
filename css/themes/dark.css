@@ -417,3 +417,57 @@
 [data-theme="dark"] .welcome-name {
   color: var(--ink-soft);
 }
+
+/* === 红包卡片暗色 === */
+[data-theme="dark"] .rp-card {
+  border-color: var(--gold);
+  box-shadow: 0 4px 20px rgba(229, 184, 110, 0.18), inset 0 1px 0 rgba(229, 184, 110, 0.10);
+}
+
+[data-theme="dark"] .rp-card.rp-received::after {
+  background: rgba(229, 184, 110, 0.14);
+  color: var(--gold);
+}
+
+[data-theme="dark"] .rp-claim-btn {
+  background: var(--gold);
+  color: var(--paper);
+}
+
+[data-theme="dark"] .rp-claim-btn:hover {
+  box-shadow: 0 4px 14px rgba(229, 184, 110, 0.36);
+}
+
+[data-theme="dark"] .rp-coin {
+  box-shadow: 0 0 8px var(--gold);
+}
+
+/* === 转账弹窗暗色 === */
+[data-theme="dark"] .transfer-mask {
+  background: rgba(8, 6, 5, 0.68);
+}
+
+[data-theme="dark"] .transfer-content,
+[data-theme="dark"] .transfer-header {
+  background: var(--paper);
+  border-color: var(--line-soft);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .transfer-field-input {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .transfer-field-input:focus {
+  background: var(--paper-3);
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(125, 176, 224, 0.18), 0 0 18px rgba(125, 176, 224, 0.12);
+}
+
+/* === 钱包按钮暗色 === */
+[data-theme="dark"] .wallet-btn:hover {
+  background: rgba(229, 184, 110, 0.10);
+  border-color: rgba(229, 184, 110, 0.28);
+}
