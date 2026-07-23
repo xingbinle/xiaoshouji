@@ -130,8 +130,8 @@ function renderMessages() {
   }
   $('welcomeScreen').hidden = true;
 
-  state.messages.forEach((msg) => {
-    container.appendChild(buildMessageNode(msg));
+  state.messages.forEach((msg, idx) => {
+    container.appendChild(buildMessageNode(msg, idx));
   });
 
   setTimeout(() => {
@@ -140,8 +140,8 @@ function renderMessages() {
   }, 50);
 }
 
-function buildMessageNode(msg) {
-  const wrapper = el('div', { class: `message ${msg.role}` });
+function buildMessageNode(msg, idx) {
+  const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
 
   // 头像
   const avatar = el('div', { class: 'avatar' });
@@ -152,6 +152,7 @@ function buildMessageNode(msg) {
     avatar.style.color = 'var(--sky-deep)';
   }
 
+  const bubbleWrap = el('div', { class: 'bubble-wrap' });
   const bubble = el('div', { class: 'bubble' });
 
   if (msg.imageUrl) {
@@ -177,9 +178,53 @@ function buildMessageNode(msg) {
     });
   }
 
+  // 消息操作按钮
+  const actions = el('div', { class: 'msg-actions' });
+  // AI 最后一条消息：重生成
+  if (msg.role === 'ai' && idx === state.messages.length - 1) {
+    const regenBtn = el('button', { class: 'msg-action-btn', title: '重新生成', 'aria-label': '重新生成' });
+    regenBtn.appendChild(icon('i-refresh', 'icon-sm'));
+    regenBtn.addEventListener('click', () => regenerate());
+    actions.appendChild(regenBtn);
+  }
+  // 删除按钮（所有消息）
+  const delBtn = el('button', { class: 'msg-action-btn', title: '删除消息', 'aria-label': '删除消息' });
+  delBtn.appendChild(icon('i-trash', 'icon-sm'));
+  delBtn.addEventListener('click', () => deleteMessage(idx));
+  actions.appendChild(delBtn);
+
+  bubbleWrap.appendChild(bubble);
+  bubbleWrap.appendChild(actions);
+
   wrapper.appendChild(avatar);
-  wrapper.appendChild(bubble);
+  wrapper.appendChild(bubbleWrap);
   return wrapper;
+}
+
+// 删除指定消息及之后所有消息
+function deleteMessage(idx) {
+  if (idx < 0 || idx >= state.messages.length) return;
+  if (!confirm('删除这条消息及其后的所有内容？')) return;
+  state.messages = state.messages.slice(0, idx);
+  saveState();
+  renderMessages();
+}
+
+// 重新生成最后一条 AI 消息
+function regenerate() {
+  if (state.messages.length === 0) return;
+  const last = state.messages[state.messages.length - 1];
+  if (last.role !== 'ai') return;
+  // 取最后一条用户消息，丢弃其后的 AI 回复
+  let lastUserIdx = -1;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    if (state.messages[i].role === 'user') { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx < 0) return;
+  state.messages = state.messages.slice(0, lastUserIdx + 1);
+  renderMessages();
+  // 触发重新生成（空文本模式）
+  sendMessage('');
 }
 
 // ============ 代码块分割 ============
@@ -355,11 +400,24 @@ async function fetchModelList() {
 
 // ============ 发送消息 ============
 async function sendMessage(text, imageDataUrl = null) {
-  if (!text && !imageDataUrl) return;
-
-  const userMsg = { role: 'user', text, imageUrl: imageDataUrl };
-  state.messages.push(userMsg);
-  renderMessages();
+  const hasContent = !!(text && text.trim()) || imageDataUrl;
+  if (!hasContent) {
+    // 空文本模式：让 AI 继续 / 重新生成
+    // 找最后一条用户消息，丢弃其后的 AI 回复
+    const lastUserIdx = (() => {
+      for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'user') return i;
+      }
+      return -1;
+    })();
+    if (lastUserIdx < 0) return; // 没有用户消息，无法继续
+    state.messages = state.messages.slice(0, lastUserIdx + 1);
+    renderMessages();
+  } else {
+    const userMsg = { role: 'user', text: text.trim(), imageUrl: imageDataUrl };
+    state.messages.push(userMsg);
+    renderMessages();
+  }
 
   $('messageInput').value = '';
   $('messageInput').style.height = 'auto';
@@ -443,7 +501,8 @@ function saveSettings() {
   state.maxTokens = parseInt($('maxTokens').value) || 4000;
   saveState();
   updateStatus();
-  closeSettings();
+  // 保存设置后不关闭面板，让用户继续修改
+  toast('已保存 ✓');
 }
 
 function updateStatus() {
@@ -587,6 +646,8 @@ function init() {
   $('settingsMask').addEventListener('click', closeSettings);
   $('saveBtn').addEventListener('click', saveSettings);
   $('fetchModelsBtn').addEventListener('click', fetchModelList);
+  // 底部"完成"按钮：关闭设置面板（设置已通过保存按钮持久化）
+  $('closeSettingsBottom').addEventListener('click', closeSettings);
 
   // 切换显示密码
   let keyVisible = false;
@@ -606,6 +667,9 @@ function init() {
 
   // Enter 发送，Shift+Enter 换行
   $('messageInput').addEventListener('keydown', (e) => {
+    // Enter 直接发送（用户输入完所有内容后点发送）
+    // Shift+Enter 换行（如果用户需要多行编辑可以换行后再继续输入）
+    // 也兼容 Ctrl+Enter 发送（有些用户习惯这个）
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       $('sendBtn').click();
