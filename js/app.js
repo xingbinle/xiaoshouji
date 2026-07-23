@@ -300,8 +300,8 @@ function buildMessageNode(msg, idx) {
   const bubbleWrap = el('div', { class: 'bubble-wrap' });
   const bubble = el('div', { class: `bubble bubble-${msg.type || 'text'}` });
 
-  // 红包类型
-  if (msg.type === 'redpacket') {
+  // 红包类型（必须有 amount 才是真实红包，否则降级为文字）
+  if (msg.type === 'redpacket' && (msg.amount > 0 || msg.redpacketId)) {
     return buildRedpacketNode(msg, idx);
   }
 
@@ -670,6 +670,28 @@ async function sendMessage() {
     if (m.pending) m.pending = false;
   });
 
+  // AI 自动领取用户刚发的红包
+  const now = Date.now();
+  state.messages.forEach((m) => {
+    if (m.type === 'redpacket' && m.role === 'user' && m.status === 'pending' && !m.autoClaimed) {
+      if (!m.createdAt || now - m.createdAt < 24 * 60 * 60 * 1000) {
+        m.status = 'received';
+        m.recipient = 'ai';
+        m.receivedAt = now;
+        m.autoClaimed = true;
+        addBalance('ai', m.amount || 0);
+        state.transferLog.push({
+          type: 'claim', from: 'user', amount: m.amount,
+          redpacketId: m.redpacketId, time: now,
+        });
+        state.messages.push({
+          role: 'user', type: 'system-event',
+          text: `${state.aiName}领取了月月的红包（¥${(m.amount||0).toFixed(2)}，备注"${m.note||''}"）`,
+        });
+      }
+    }
+  });
+
   // ★ 关键：记录"本次 sendMessage 的起点边界"，用于重生成只截本段
   state.lastSendBoundary = state.messages.length;
 
@@ -697,6 +719,16 @@ async function sendMessage() {
       }
       if (m.type === 'recall') {
         return { role, content: '[撤回了一条消息]' };
+      }
+      if (m.type === 'redpacket') {
+        const sender = m.role === 'user' ? '月月' : state.aiName;
+        const statusText = m.status === 'received'
+          ? `${m.recipient === 'user' ? '月月' : state.aiName}已领取`
+          : m.status === 'expired' ? '已过期' : '待领取';
+        return { role, content: `[红包] ${sender}发了一个 ¥${(m.amount||0).toFixed(2)} 红包"${m.note||''}"（${statusText}）` };
+      }
+      if (m.type === 'system-event') {
+        return { role: 'user', content: `[系统提示] ${m.text || ''}` };
       }
       let content = m.text || '';
       if (m.edited) content += ' (已编辑)';
@@ -946,7 +978,6 @@ function handleMoreAction(action) {
     case 'game':
       toast('小游戏接入 v0.3 上线');
       break;
-    case 'redpacket':
     case 'transfer':
       openTransferPanel();
       break;
@@ -1368,12 +1399,11 @@ function init() {
   // 表情包按钮
   $('stickerBtn').addEventListener('click', handleSticker);
 
-  // 转账/红包弹窗
+  // 转账弹窗
   $('closeTransfer').addEventListener('click', closeTransferPanel);
   $('transferMask').addEventListener('click', closeTransferPanel);
   $('transferCancel').addEventListener('click', closeTransferPanel);
   $('transferSend').addEventListener('click', sendRedpacket);
-  $('walletBtn').addEventListener('click', openTransferPanel);
 
   // 语音面板（在加号菜单里触发）
   $('closeVoice').addEventListener('click', closeVoicePanel);

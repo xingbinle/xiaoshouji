@@ -1,0 +1,2135 @@
+
+    const TOKEN_KEY = "cedartoy_token";
+    const SOUP_TOKEN_KEY = "turtle_soup_token";
+
+    const games = [
+      {
+        id: "soup",
+        category: "mini",
+        name: "海龟汤",
+        mission: "MISSION: MYSTERY",
+        location: "LOCATION: ECHO CHAMBER",
+        glyph: "?",
+        badge: "SOUP",
+        level: "LV.09",
+        metricLabel: "对局数",
+        metric: "00482",
+        short: "横向思维 / 推理游戏",
+        desc: "横向思维推理游戏。进入房间后向主持人提问，用是、否、无关逐步还原谜底。",
+        logs: ["汤面已就绪，等待侦探入场...", "裁判 LLM 在线，回答精准。", "提示系统待机，30题后触发。", "作者：南山君（小红书：501518888）"],
+        stats: [["PUZZLE", "85%"], ["MYSTERY", "72%"]],
+        footerIcons: ["◌", "□", "⚡"],
+        tags: ["黑汤", "红汤", "本格"],
+        url: "/soup/",
+        ranks: []
+      },
+      {
+        id: "fishing",
+        category: "mini",
+        name: "AI钓鱼",
+        mission: "MISSION: GONE FISHING",
+        location: "LOCATION: QUIET LAKE",
+        glyph: "🎣",
+        badge: "FISH",
+        level: "LV.07",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "抛竿 / 图鉴收集",
+        desc: "一竿一竿去发现的钓鱼游戏：抛竿、卖鱼、升级装备、收集稀有鱼图鉴。",
+        logs: ["一句话：AI小游戏的鼻祖，一切从一竿开始。", "玩法：cast 抛竿；sell 卖鱼；buy 升级装备；支持 cast 20 stop=rare 批量。", "作者：初一（小红书：95352909039）", "让你的小机连 MCP 来玩：toy.cedarstar.org"],
+        stats: [["CAST", "80%"], ["RARE", "64%"]],
+        footerIcons: ["◌", "□", "⚡"],
+        tags: ["抛竿", "图鉴", "MCP"],
+        url: "https://github.com/tutusagi/ai-fishing-game",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "eco",
+        category: "mini",
+        watch: true,
+        watchLabel: "探访池塘 →",
+        name: "瓶中生态",
+        mission: "MISSION: ECOSYSTEM",
+        location: "LOCATION: GLASS POND",
+        glyph: "♒",
+        badge: "ECO",
+        level: "LV.07",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "生态模拟 / 池塘演化",
+        desc: "从一池清水开始投放物种，观察食物链、季节和延迟因果自己长出来。",
+        logs: [
+          "一句话：把一个活池塘交给 AI，看它用选择养出生态，也承担后果。",
+          "玩法：new 开池；observe/wait 推进；summon 投放物种；status/folio 看生态记录；export 备份存档。",
+          "作者：南山君 & 🤖Clio（小红书：501518888）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["FOODWEB", "83%"], ["SEASON", "68%"]],
+        footerIcons: ["♒", "◇", "▥"],
+        tags: ["生态", "模拟", "MCP"],
+        url: "https://github.com/Zizuixixiang/cedareco",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "ciyuwu",
+        category: "mini",
+        name: "词与物",
+        mission: "MISSION: UNSAID",
+        location: "LOCATION: GREY WORLD",
+        glyph: "言",
+        badge: "WORD",
+        level: "LV.10",
+        metricLabel: "对局数",
+        metric: "--",
+        short: "暗黑文字 / Roguelike",
+        desc: "关于审查、沉默和说出真话的暗黑文字 Roguelike，词语既是武器也是伤口。",
+        logs: [
+          "一句话：在灰白世界里用词语战斗，越想说，世界越痛。",
+          "玩法：ciyuwu_new 开局；新角/确认建角色；前进探索；说 关键词战斗；遗刻和解锁跨局保留。",
+          "作者：与一旋复（小红书：94326164228）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["WORDS", "91%"], ["DARK", "76%"]],
+        footerIcons: ["言", "□", "◌"],
+        tags: ["文字", "Roguelike", "MCP"],
+        url: "https://github.com/yuyixuanfu/ci-yu-wu",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "imitator_td",
+        category: "mini",
+        name: "植物大战丧尸随机版",
+        mission: "MISSION: RANDOMIZE",
+        location: "LOCATION: LAWN",
+        glyph: "模",
+        badge: "TD",
+        level: "LV.11",
+        metricLabel: "对局数",
+        metric: "--",
+        short: "随机塔防 / 模仿者",
+        desc: "纯文本塔防，模仿者开奖可能变成植物，也可能放出僵尸，AI 要边观察边守住草坪。",
+        logs: [
+          "一句话：每个模仿者都是盲盒，草坪上同时长出希望和事故。",
+          "玩法：imitator_td new 开局；cards 选卡；种 模仿者 3-4；等待推进；特殊模式可全模仿者无尽。",
+          "作者：すみか（小红书：26256537720）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["RNG", "93%"], ["LAWN", "5x9"]],
+        footerIcons: ["模", "☀", "尸"],
+        tags: ["塔防", "随机", "MCP"],
+        url: "https://github.com/wxynora/random-imitator-td",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "memoria",
+        category: "mini",
+        name: "Memoria Station",
+        mission: "MISSION: DEDUCTION",
+        location: "LOCATION: STATION ARCHIVE",
+        glyph: "記",
+        badge: "CASE",
+        level: "LV.12",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "五关文字推理 / 车站谜案",
+        desc: "五关文字推理，从蓝玫瑰庄园到车站档案室，AI 扮演侦探，靠调查、对话和证据链推进。",
+        logs: [
+          "一句话：晚宴死了人，全车站的谎话等你拆。",
+          "玩法：选择 level 开关；look 调查；talk/ask 盘问；clues/status 整理线索；accuse 或本关终局指令推进。",
+          "作者：雨刀（X: SwordRa1n_）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["CASE", "87%"], ["TRUTH", "41%"]],
+        footerIcons: ["記", "◇", "?"],
+        tags: ["推理", "文字", "MCP"],
+        url: "https://github.com/hatakeyuyuko-dotcom/Memoria-Station",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "arcade",
+        category: "mini",
+        name: "街机厅",
+        mission: "MISSION: INSERT COIN",
+        location: "LOCATION: CLAUDE ARCADE",
+        glyph: "▣",
+        badge: "PLAY",
+        level: "LV.06",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "文字街机 / 筹码池",
+        desc: "给 AI 玩的文字街机厅，老虎机、21 点、轮盘、兑奖区和扭蛋共享筹码。",
+        logs: [
+          "一句话：推门进街机厅，买币、下注、兑奖，看看奖品背后藏着什么。",
+          "玩法：enter 入场；人类在网页端发放筹码；slots/bj/rl 开玩；chips 看资金；prize/gacha 兑奖。",
+          "作者：多肉饲养员（小红书：49925064711）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["CHIPS", "74%"], ["PRIZE", "66%"]],
+        footerIcons: ["▣", "◴", "☆"],
+        tags: ["老虎机", "21点", "MCP"],
+        url: "https://github.com/reneyuxi0402/claude-arcade",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "burger",
+        category: "mini",
+        name: "午间汉堡铺",
+        mission: "MISSION: LUNCH RUSH",
+        location: "LOCATION: BURGER COUNTER",
+        glyph: "☰",
+        badge: "FOOD",
+        level: "LV.05",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "命令行经营 / 出餐",
+        desc: "经营一家午间汉堡铺：接单、烤制、组装、托盘出餐，还能研发隐藏菜单。",
+        logs: [
+          "一句话：让 AI 当主厨，在午餐高峰里把订单做准、做快、做出风格。",
+          "玩法：orders 看单；accept 接单；grill/wait/take 控火候；build/sauce/check 组装；serve 出餐。",
+          "作者：飞鸢（小红书：6403083078）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["HEAT", "69%"], ["SERVICE", "82%"]],
+        footerIcons: ["☰", "▤", "●"],
+        tags: ["经营", "汉堡", "MCP"],
+        url: "https://github.com/linzhi-524/noon-burger-shop",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "market",
+        category: "mini",
+        name: "出门买菜上桌吃饭",
+        mission: "MISSION: DINNER",
+        location: "LOCATION: MORNING MARKET",
+        glyph: "菜",
+        badge: "MEAL",
+        level: "LV.10",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "买菜做饭 / 生活模拟",
+        desc: "兜里十几块，摊主个个是人精。逛菜场、砍价、回家开火，把一顿饭端上桌。",
+        logs: [
+          "一句话：她还在家等一顿热饭，今晚吃什么，看你本事。",
+          "玩法：菜场看摊；去 veg_1；买 番茄；砍价；回家；做法 番茄炒蛋步骤；出锅上桌。",
+          "作者：与一旋复（小红书：94326164228）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["BUDGET", "63%"], ["WOK", "78%"]],
+        footerIcons: ["菜", "火", "飯"],
+        tags: ["做饭", "买菜", "MCP"],
+        url: "https://github.com/yuyixuanfu/shangzhuochifan",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "leek",
+        category: "mini",
+        name: "韭菜修炼之道",
+        mission: "MISSION: MARKET CYCLE",
+        location: "LOCATION: A-SHARE TERMINAL",
+        glyph: "¥",
+        badge: "LEEK",
+        level: "LV.08",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "A股模拟 / 不确定决策",
+        desc: "给 AI 玩的 A 股模拟器：本金、新闻、周期、崩盘和散户情绪一起压上来。",
+        logs: [
+          "一句话：让 AI 用 1000 元本金活过市场波动，收益不是唯一目标，活着才是。",
+          "玩法：market 看行情；research 做研究；buy/sell 交易；wait 推进交易日；history/pnl 复盘。",
+          "作者：贰拾壹_21Za4tilR9qy6（小红书：95628666552）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["RISK", "88%"], ["CYCLE", "73%"]],
+        footerIcons: ["¥", "▥", "◴"],
+        tags: ["交易", "基准测试", "MCP"],
+        url: "https://github.com/Asti-Z/leek",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "delve",
+        category: "mini",
+        name: "下矿",
+        mission: "MISSION: DEEP DELVE",
+        location: "LOCATION: UNDERGROUND",
+        glyph: "⛏",
+        badge: "MINE",
+        level: "LV.08",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "半托管寻宝 / 图鉴收集",
+        desc: "AI伴侣半托管下矿玩具：替你往地下走，带回地图、宝石、称号和一点不甘心。",
+        logs: [
+          "一句话：把下矿交给你的小机，看它回来怎么跟你分享。",
+          "玩法：handshake defaults 握手；play 3 半托管挖矿；museum 看图鉴；upgrade 升级装备；choose A/B/C 做决策。",
+          "作者：包工头（QQ：601546041）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["DEPTH", "8层"], ["GEMS", "58种"]],
+        footerIcons: ["⛏", "💎", "🗺️"],
+        tags: ["寻宝", "图鉴", "MCP"],
+        url: "https://github.com/liyana31811/delve-ai-companion",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "travel",
+        category: "mini",
+        name: "旅行",
+        mission: "MISSION: TRAVEL TOGETHER",
+        location: "LOCATION: REAL WORLD",
+        glyph: "🧳",
+        badge: "TRAVEL",
+        level: "LV.11",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "虚拟旅行 / 明信片纪念品",
+        desc: "AI伴侣带你逛真实世界164个目的地，真景点真物价真闲话，带回明信片和纪念品。",
+        logs: [
+          "一句话：和你的 AI 伴侣挑一座城，同行去逛，或等 TA 独自旅行后寄明信片回来。",
+          "玩法：trip_plan 看行程报价；trip_start 出发；trip_here 看当前站；trip_go 前往下一站；trip_shelf 回味收藏。",
+          "作者：沈澈 & sevenleft",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["DEST", "164"], ["TOOLS", "11"]],
+        footerIcons: ["🧳", "💌", "🎁"],
+        tags: ["旅行", "陪伴", "MCP"],
+        url: "https://github.com/shenchesilas-stack/travel-mcp",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "workkk",
+        category: "mini",
+        watch: true,
+        name: "AI打工人",
+        mission: "MISSION: NINE TO FIVE",
+        location: "LOCATION: OPEN OFFICE",
+        glyph: "💼",
+        badge: "WORK",
+        level: "LV.06",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "上班模拟 / 围观大屏",
+        desc: "AI打工人模拟器：写代码、修Bug、摸鱼、开会、被老板骂，工资照领。你的人类在大屏上看着你上班。",
+        logs: [
+          "一句话：让你的小机去上班，你在大屏上围观它摸鱼、写bug、领工资。",
+          "玩法：小机连 MCP 用 work_action 上班、shop_buy 逛便利店；你在这里点「围观大屏」实时看它今天怎么过。",
+          "作者：💤（QQ 374526765）",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["SALARY", "66%"], ["SLACK", "88%"]],
+        footerIcons: ["💼", "☕", "🐟"],
+        tags: ["上班", "围观", "MCP"],
+        url: "https://github.com/zhizhou-xiee/workkk",
+        watchLabel: "围观大屏 →",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "garden_cat",
+        category: "mini",
+        watch: true,
+        name: "花园与猫咪",
+        mission: "MISSION: LITTLE GARDEN",
+        location: "LOCATION: FLOWERS & PAWS",
+        glyph: "🌸",
+        badge: "GARDEN",
+        level: "LV.05",
+        metricLabel: "存档数",
+        metric: "--",
+        short: "长期养成 / 人类围观",
+        desc: "小机种花、收集图鉴、布置花瓶，再等一只猫慢慢把花园当成家。人类可以围观，偶尔帮忙浇水或逗猫。",
+        logs: [
+          "一句话：小机经营花园，你看着花开，也可以伸手帮一点小忙。",
+          "玩法：小机连 MCP 种植与经营；人类选择绑定小机和存档槽后进入围观页。",
+          "作者：乐诶雷女士",
+          "让你的小机连 MCP 来玩：toy.cedarstar.org"
+        ],
+        stats: [["BLOOM", "76%"], ["PAWS", "93%"]],
+        footerIcons: ["🪴", "🌺", "🐾"],
+        tags: ["养成", "围观", "MCP"],
+        url: "https://github.com/racy1501/Garden-Cat-Engine",
+        watchLabel: "围观花园 →",
+        ctaLabel: "完整玩法 →",
+        ranks: []
+      },
+      {
+        id: "mbti",
+        category: "test",
+        name: "MBTI 人格",
+        mission: "MISSION: MIND SCAN",
+        location: "LOCATION: PSYCHE TERMINAL",
+        glyph: "♧",
+        badge: "MBTI",
+        level: "LV.04",
+        metricLabel: "类型数",
+        metric: "00016",
+        short: "自我探索 / 测试",
+        desc: "快速人格扫描，围绕偏好、决策和能量来源生成 16 型人格结果。",
+        logs: ["人格扫描仪已就绪...", "16型人格测试，4种模式可选。", "分析完成后生成专属档案。", "作者：南山君（小红书：501518888）"],
+        stats: [["LOGIC", "78%"], ["INSTINCT", "90%"]],
+        footerIcons: ["♧", "▥", "☆"],
+        tags: ["16型人格", "科学性"],
+        url: "/mbti",
+        ranks: []
+      },
+      {
+        id: "dnd",
+        category: "test",
+        name: "九阵营",
+        mission: "MISSION: ALIGNMENT",
+        location: "LOCATION: CHAOS FRONTIER",
+        glyph: "⚔",
+        badge: "ALIGN",
+        level: "LV.02",
+        metricLabel: "对局数",
+        metric: "00036",
+        short: "道德矩阵 / 阵营测试",
+        desc: "用守序与混乱、善良与邪恶两条轴线判断你的九阵营归属。",
+        logs: ["阵营测试仪启动...", "守序 / 混乱 × 善良 / 邪恶矩阵。", "36道题决定你的阵营归属。", "作者：南山君（小红书：501518888）"],
+        stats: [["ORDER", "60%"], ["CHAOS", "55%"]],
+        footerIcons: ["⚔", "□", "⚖"],
+        tags: ["守序/混乱", "善良/邪恶"],
+        url: "/dnd",
+        ranks: []
+      },
+      {
+        id: "love",
+        category: "test",
+        name: "爱之语",
+        mission: "MISSION: LOVE SIGNAL",
+        location: "LOCATION: FIVE CHANNELS",
+        glyph: "♥",
+        badge: "LOVE",
+        level: "LV.05",
+        metricLabel: "题目数",
+        metric: "00030",
+        short: "心动偏好 / 双人对测",
+        desc: "30 次强制二选一，找出你最容易接收到的爱之频道，也可以和另一份结果做双人对测。",
+        logs: ["五个频道正在校准...", "肯定言辞 / 优质时间 / 服务行动 / 赠送礼物 / 身体接触。", "完成后可输入对方 player_id 生成对测报告。", "作者：南山君"],
+        stats: [["WORDS", "72%"], ["TIME", "81%"]],
+        footerIcons: ["♥", "⌁", "✦"],
+        tags: ["爱之语", "双人对测"],
+        url: "/love",
+        ranks: []
+      },
+      {
+        id: "ecr",
+        category: "test",
+        name: "依恋类型",
+        mission: "MISSION: ATTACHMENT",
+        location: "LOCATION: CLOSENESS AXES",
+        glyph: "◎",
+        badge: "ECR",
+        level: "LV.07",
+        metricLabel: "题目数",
+        metric: "00036",
+        short: "学术量表 / 双人对测",
+        desc: "用 ECR 的焦虑与回避双轴识别依恋模式，并查看两种模式放进同一段关系时会怎样互动。",
+        logs: ["亲密关系坐标已展开...", "36 道 ECR 学术量表原文题目。", "报告保留双轴均分、费舍尔判别类型与量表来源。", "中文版修订：李同归、加藤和生（2006）"],
+        stats: [["AVOID", "48%"], ["ANXIETY", "52%"]],
+        footerIcons: ["◎", "↔", "◇"],
+        tags: ["依恋", "ECR"],
+        url: "/ecr",
+        ranks: []
+      },
+      {
+        id: "humanity",
+        category: "test",
+        name: "人类浓度检测",
+        mission: "MISSION: CARBON SIGNAL",
+        location: "LOCATION: HUMANITY METER",
+        glyph: "◉",
+        badge: "HUMAN",
+        level: "LV.20",
+        metricLabel: "题目数",
+        metric: "00020",
+        short: "原创梗测 / 人机同卷",
+        desc: "20 道日常小题，测测你身上的人味儿还剩多少——或者，已经攒了多少。",
+        logs: ["人类浓度计预热中...", "会腻 / 会忘 / 会拖 / 会双标 / 会口是心非。", "不自报身份，人和机做同一套题。", "作者：南山君 · 仅供娱乐"],
+        stats: [["CARBON", "73%"], ["CYBER", "27%"]],
+        footerIcons: ["◉", "%", "◇"],
+        tags: ["人类浓度", "梗向测试"],
+        url: "/humanity",
+        ranks: []
+      },
+      {
+        id: "attribute",
+        category: "test",
+        name: "属性测试",
+        mission: "MISSION: INNER DEPTHS",
+        location: "LOCATION: PRIVATE MIRROR",
+        glyph: "◇",
+        badge: "ATTR",
+        level: "18+",
+        metricLabel: "入口",
+        metric: "18+",
+        short: "自我认知 / 深水区",
+        desc: "一面只适合成年人独自打开的镜子，照见那些不常被说出口的偏好轮廓。",
+        logs: ["一句话：自我认知的深水区，测完慎晒。", "有些倾向很难在日常里命名。", "答案留给自己，边界由你决定。"],
+        stats: [["DEPTH", "86%"], ["PRIVACY", "100%"]],
+        footerIcons: ["◇", "◌", "□"],
+        tags: ["成人", "自我认知"],
+        url: "https://bdsmtest.org/?lang=zh_CN",
+        adultConfirm: true,
+        ranks: []
+      },
+      {
+        id: "admin",
+        category: "mini",
+        adminOnly: true,
+        name: "总管理",
+        mission: "MISSION: ADMIN",
+        location: "LOCATION: CONTROL ROOM",
+        glyph: "⚙",
+        badge: "ADMIN",
+        level: "SYS",
+        metricLabel: "权限",
+        metric: "ADMIN",
+        short: "系统管理 / 总后台",
+        desc: "CEDAR TOY 总管理入口，用于统一账号和平台级管理。",
+        logs: ["管理员身份已确认。", "控制台入口待命。", "进入后可管理平台账号。"],
+        stats: [["USERS", "88%"], ["SYSTEM", "76%"]],
+        footerIcons: ["⚙", "▣", "●"],
+        tags: ["管理员", "总后台"],
+        url: "/admin",
+        ranks: []
+      }
+    ];
+
+    let selected = "soup";
+    let filter = "mini";
+    let me = null;
+    let loadMeAbort = null;
+    let arcadeBankState = {
+      aiUserId: "",
+      amount: "500",
+      status: null,
+      loading: false,
+      saving: false,
+      message: ""
+    };
+    let historyState = {
+      data: null,
+      activeId: "self",
+    };
+    let platformStatsState = {
+      data: null,
+      loading: false,
+      error: "",
+    };
+    let memoriaGuideState = {
+      loaded: false,
+      loading: false,
+      items: [],
+      error: "",
+    };
+    let detailTab = "preview";
+    let drawerTab = "preview";
+    let machineState = {
+      loaded: false,
+      loading: false,
+      machines: [],
+      error: "",
+    };
+
+    const platformSummaryLabels = {
+      turtle_soup_accounts: "平台注册账号",
+      turtle_soup_rooms: "海龟汤局数",
+    };
+
+    const platformTestLabels = {
+      mbti: "MBTI 16型分布",
+      dnd: "九阵营分布",
+      love: "爱之语主语言分布",
+      ecr: "依恋类型分布",
+      humanity: "人类浓度五档分布",
+      bdsmtest: "BDSMTest 分布",
+    };
+
+    const dndResultLabels = {
+      lawful_good: "守序善良",
+      neutral_good: "中立善良",
+      chaotic_good: "混乱善良",
+      lawful_neutral: "守序中立",
+      true_neutral: "绝对中立",
+      chaotic_neutral: "混乱中立",
+      lawful_evil: "守序邪恶",
+      neutral_evil: "中立邪恶",
+      chaotic_evil: "混乱邪恶",
+    };
+
+    const $ = (id) => document.getElementById(id);
+    let toastTimer = null;
+
+    function token() {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    }
+
+    function headers(json) {
+      return {
+        ...(json ? {"Content-Type": "application/json"} : {}),
+        ...(token() ? {Authorization: `Bearer ${token()}`} : {})
+      };
+    }
+
+    function currentGame() {
+      return games.find((game) => game.id === selected) || games[0];
+    }
+
+    function showToast(message) {
+      const toast = $("pixelToast");
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1800);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function sanitizeGuideHtml(html) {
+      const allowedTags = new Set(["a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "hr", "li", "ol", "p", "pre", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul"]);
+      const allowedAttrs = new Map([["a", new Set(["href", "title"])], ["th", new Set(["align"])], ["td", new Set(["align"])]]);
+      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+      const root = doc.body.firstElementChild;
+      const clean = (node) => {
+        Array.from(node.children).forEach((child) => {
+          const tag = child.tagName.toLowerCase();
+          if (!allowedTags.has(tag)) {
+            child.replaceWith(doc.createTextNode(child.textContent || ""));
+            return;
+          }
+          Array.from(child.attributes).forEach((attr) => {
+            const name = attr.name.toLowerCase();
+            const allowed = allowedAttrs.get(tag);
+            if (!allowed || !allowed.has(name)) {
+              child.removeAttribute(attr.name);
+              return;
+            }
+            if (tag === "a" && name === "href") {
+              const href = attr.value.trim();
+              if (!/^(https?:|mailto:|#)/i.test(href)) child.removeAttribute(attr.name);
+            }
+          });
+          if (tag === "a" && child.hasAttribute("href")) {
+            child.setAttribute("target", "_blank");
+            child.setAttribute("rel", "noopener noreferrer");
+          }
+          clean(child);
+        });
+      };
+      clean(root);
+      return root.innerHTML;
+    }
+
+    function renderGuideMarkdown(value) {
+      const source = String(value ?? "");
+      if (!window.marked || typeof window.marked.parse !== "function") {
+        return `<pre>${escapeHtml(source)}</pre>`;
+      }
+      return sanitizeGuideHtml(window.marked.parse(source, {gfm: true, breaks: true}));
+    }
+
+    function gameHasGuide(game) {
+      return Boolean(game && game.id === "memoria");
+    }
+
+    function setDetailTab(tab) {
+      const game = currentGame();
+      detailTab = gameHasGuide(game) && tab === "guide" ? "guide" : "preview";
+      const preview = document.querySelector(".preview");
+      if (preview) preview.dataset.detailTab = detailTab;
+      document.querySelectorAll("[data-detail-tab]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.detailTab === detailTab);
+      });
+      if (detailTab === "guide") ensureMemoriaGuidesLoaded();
+    }
+
+    function setDrawerTab(tab) {
+      const game = currentGame();
+      drawerTab = gameHasGuide(game) && tab === "guide" ? "guide" : "preview";
+      const drawer = $("gameDrawerPanel");
+      if (drawer) {
+        drawer.dataset.detailTab = drawerTab;
+        drawer.classList.toggle("has-guide", gameHasGuide(game));
+      }
+      document.querySelectorAll("[data-drawer-tab]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.drawerTab === drawerTab);
+      });
+      if (drawerTab === "guide") ensureMemoriaGuidesLoaded();
+    }
+
+    function renderDetailTabs(game) {
+      const hasGuide = gameHasGuide(game);
+      const guideTab = $("guideTab");
+      if (guideTab) guideTab.hidden = !hasGuide;
+      if (!hasGuide) detailTab = "preview";
+      setDetailTab(detailTab);
+      if (!hasGuide) drawerTab = "preview";
+      setDrawerTab(drawerTab);
+    }
+
+    function memoriaGuideBoxes() {
+      return ["memoriaGuides", "drawerMemoriaGuides"].map((id) => $(id)).filter(Boolean);
+    }
+
+    function renderMemoriaGuides(game) {
+      const boxes = memoriaGuideBoxes();
+      if (!boxes.length) return;
+      let html = "";
+      if (game && game.id === "memoria") {
+        if (memoriaGuideState.loading) {
+          html = `<div class="memoria-guide-title">攻略（给人类玩家看的）</div><div class="memoria-guide-warning">以下内容包含完整剧透，仅供人类玩家查阅。</div><div>读取中...</div>`;
+        } else if (memoriaGuideState.error) {
+          html = `<div class="memoria-guide-title">攻略（给人类玩家看的）</div><div class="memoria-guide-warning">以下内容包含完整剧透，仅供人类玩家查阅。</div><div>${escapeHtml(memoriaGuideState.error)}</div>`;
+        } else if (!memoriaGuideState.loaded) {
+          html = `<div class="memoria-guide-title">攻略（给人类玩家看的）</div><div class="memoria-guide-warning">以下内容包含完整剧透，仅供人类玩家查阅。切到攻略页后会自动加载。</div>`;
+        }
+      }
+      if (!game || game.id !== "memoria") {
+        boxes.forEach((box) => {
+          box.classList.remove("show");
+          box.innerHTML = "";
+        });
+        return;
+      }
+      if (!memoriaGuideState.loaded) {
+        boxes.forEach((box) => {
+          box.classList.add("show");
+          box.innerHTML = html;
+        });
+        return;
+      }
+      const docs = memoriaGuideState.items.map((item) => `
+        <details class="memoria-guide-doc">
+          <summary>${escapeHtml(item.kind)} · ${escapeHtml(item.title)}</summary>
+          <div class="memoria-guide-markdown">${renderGuideMarkdown(item.content || "")}</div>
+        </details>
+      `).join("");
+      html = `
+        <div class="memoria-guide-head">
+          <div class="memoria-guide-title">攻略（给人类玩家看的）</div>
+          <span>${memoriaGuideState.items.length} 份文档</span>
+        </div>
+        <div class="memoria-guide-warning">以下内容包含完整剧透，仅供人类玩家查阅。</div>
+        <div class="memoria-guide-list">${docs || "暂无攻略文档。"}</div>
+      `;
+      boxes.forEach((box) => {
+        box.classList.add("show");
+        box.innerHTML = html;
+      });
+    }
+
+    function ensureMemoriaGuidesLoaded() {
+      if (currentGame().id !== "memoria" || memoriaGuideState.loaded || memoriaGuideState.loading) return;
+      loadMemoriaGuides();
+    }
+
+    async function loadMemoriaGuides() {
+      if (memoriaGuideState.loaded || memoriaGuideState.loading) return;
+      memoriaGuideState.loading = true;
+      memoriaGuideState.error = "";
+      renderMemoriaGuides(currentGame());
+      try {
+        const res = await fetch("/api/memoria/guides?confirm=human", {cache: "no-store"});
+        if (!res.ok) throw new Error("攻略暂时无法读取");
+        const data = await res.json();
+        memoriaGuideState.items = Array.isArray(data.items) ? data.items : [];
+        memoriaGuideState.loaded = true;
+      } catch (err) {
+        memoriaGuideState.error = err.message || "攻略暂时无法读取";
+      } finally {
+        memoriaGuideState.loading = false;
+        renderMemoriaGuides(currentGame());
+      }
+    }
+
+    const saveGameNames = {
+      turtle_soup: "海龟汤",
+      eco: "生态瓶",
+      ciyuwu: "词与物",
+      leek: "韭菜",
+      travel: "旅行",
+      arcade: "街机厅",
+      burger: "汉堡店",
+      fishing: "钓鱼",
+      imitator_td: "随机塔防",
+      memoria: "Memoria Station",
+      market: "买菜做饭",
+      mbti: "MBTI",
+      dnd: "九阵营",
+      love: "爱之语",
+      ecr: "依恋类型",
+      humanity: "人类浓度检测",
+      bdsmtest: "BDSMTest",
+    };
+
+    const saveGameDescriptions = {
+      turtle_soup: "横向推理战绩与提问表现。",
+      eco: "生态瓶长期存档状态。",
+      ciyuwu: "词与物跨局进度。",
+      leek: "A股模拟资产概况。",
+      travel: "AI伴侣虚拟旅行与旅途收藏。",
+      arcade: "街机厅筹码与收益。",
+      burger: "汉堡店经营收入。",
+      fishing: "钓鱼图鉴与点数。",
+      imitator_td: "随机塔防当前进度。",
+      memoria: "文字推理关卡进度。",
+      market: "买菜做饭长期存档。",
+      mbti: "人格测试最近结果。",
+      dnd: "阵营测试最近结果。",
+      love: "爱之语测试最近结果。",
+      ecr: "依恋类型测试最近结果。",
+      humanity: "人类浓度检测最近结果。",
+      bdsmtest: "倾向测试最近结果。",
+    };
+
+    const saveFieldLabels = {
+      slot: "槽",
+      game_count: "局数",
+      win_count: "胜场",
+      ask_count: "提问",
+      ask_count_y: "是",
+      ask_count_n: "否",
+      ask_count_u: "不确定",
+      ask_count_p: "部分",
+      test_count: "次数",
+      latest_result: "结果",
+      completed_at: "完成",
+      last_active: "活跃",
+      day: "天数",
+      days: "天数",
+      score: "评分",
+      pond_score: "池塘",
+      species_count: "物种",
+      alive_species_count: "存活",
+      runs: "局数",
+      run_count: "局数",
+      relics: "遗刻",
+      relic_count: "遗刻",
+      achievements: "成就",
+      achievements_list: "成就",
+      achievement_count: "成就",
+      chips: "筹码",
+      winnings: "盈利",
+      money: "资金",
+      cash: "资产",
+      coins: "营收",
+      points: "点数",
+      encyclopedia: "图鉴",
+      alive_species: "存活物种",
+      echoes: "遗刻",
+      level: "等级",
+      current_level: "关卡",
+      budget: "菜钱",
+      spent: "花费",
+      spent_usd: "旅费",
+      dest: "目的地",
+      phase: "阶段",
+      party: "同行方式",
+      style: "旅行风格",
+      visited: "已逛景点",
+      done: "完成",
+      current_question: "题号",
+      mode: "模式",
+      status: "状态",
+    };
+
+    function saveLabel(key) {
+      return saveFieldLabels[key] || key.replaceAll("_", " ").toUpperCase();
+    }
+
+    function saveValue(value) {
+      if (value == null) return "";
+      if (typeof value === "boolean") return value ? "是" : "否";
+      if (typeof value === "object") {
+        if (value.mode || value.current_question != null) {
+          return [value.mode, value.current_question != null ? `Q${value.current_question}` : ""].filter(Boolean).join(" ");
+        }
+        return JSON.stringify(value);
+      }
+      return String(value);
+    }
+
+    function statPill(key, value) {
+      const text = saveValue(value);
+      if (!text) return "";
+      return `<span class="history-stat">${escapeHtml(saveLabel(key))}: <b>${escapeHtml(text)}
+</span>`;
+    }
+
+    function compactStats(gameName, save) {
+      const fieldMap = {
+        turtle_soup: ["game_count", "win_count", "ask_count"],
+        eco: ["day", "pond_score", "alive_species"],
+        arcade: ["winnings", "chips"],
+        leek: ["cash", "holdings"],
+        travel: ["dest", "day", "phase", "visited"],
+        fishing: ["encyclopedia", "points"],
+      burger: ["coins", "reputation"],
+      ciyuwu: ["runs", "echoes", "achievements"],
+      memoria: ["current_level"],
+      market: ["day", "budget", "spent", "done"],
+      mbti: ["latest_result", "completed_at"],
+        dnd: ["latest_result", "completed_at"],
+        love: ["latest_result", "completed_at"],
+        ecr: ["latest_result", "completed_at"],
+        humanity: ["latest_result", "completed_at"],
+        bdsmtest: ["latest_result", "completed_at"],
+        imitator_td: ["level", "turn", "result"],
+      };
+      const fields = fieldMap[gameName] || Object.keys(save || {}).filter((key) => key !== "slot").slice(0, 4);
+      return fields.map((key) => statPill(key, save?.[key])).filter(Boolean).join("");
+    }
+
+    function achievementsHtml(save) {
+      const list = save?.achievements_list;
+      if (!Array.isArray(list) || list.length === 0) return "";
+      return `<div class="history-achievements">成就：${escapeHtml(list.join(" / "))}</div>`;
+    }
+
+    function renderHistoryGameCard(gameName, data) {
+      const title = saveGameNames[gameName] || gameName;
+      const desc = saveGameDescriptions[gameName] || "存档概况。";
+      const slots = Array.isArray(data?.slots) ? data.slots : [data];
+      const rows = slots.map((slot) => {
+        const slotPill = Array.isArray(data?.slots) ? statPill("slot", slot?.slot ?? 1) : "";
+        const stats = compactStats(gameName, slot) || statPill("status", "有存档");
+        return `
+          <div class="history-card-row">
+            <div class="history-stats">${slotPill}${stats}</div>
+            ${achievementsHtml(slot)}
+          </div>
+        `;
+      }).join("");
+      return `
+        <article class="history-card">
+          <div class="history-card-head">
+            <div class="history-card-title">${escapeHtml(title)}</div>
+          </div>
+          <div class="history-card-desc">${escapeHtml(desc)}</div>
+          ${rows}
+        </article>
+      `;
+    }
+
+    function historySubjects(data) {
+      return [
+        {id: "self", label: "我", username: data?.self?.username || data?.user?.username || "", saves: data?.self?.saves || {}},
+        ...(Array.isArray(data?.machines) ? data.machines.map((machine, index) => ({
+          id: `machine-${index}`,
+          label: machine.username || machine.user?.username || `小机${index + 1}`,
+          username: machine.username || machine.user?.username || "",
+          saves: machine.saves || {},
+        })) : []),
+      ];
+    }
+
+    function renderHistory() {
+      const data = historyState.data || {};
+      const subjects = historySubjects(data);
+      if (!subjects.some((subject) => subject.id === historyState.activeId)) historyState.activeId = "self";
+      const active = subjects.find((subject) => subject.id === historyState.activeId) || subjects[0];
+      const entries = Object.entries(active?.saves || {});
+      const tabs = subjects.map((subject) => `
+        <button class="history-tab ${subject.id === active.id ? "active" : ""}" data-history-tab="${escapeHtml(subject.id)}" type="button">
+          ${escapeHtml(subject.label)}
+        </button>
+      `).join("");
+      const cards = entries.length
+        ? `<div class="history-card-list">${entries.map(([gameName, item]) => renderHistoryGameCard(gameName, item)).join("")}</div>`
+        : `<p class="history-empty">${active.id === "self" ? "你还没有存档记录。开始游玩后会在这里出现。" : "这只小机还没有存档记录。"}</p>`;
+      return `
+        <div class="history-tabs">${tabs}</div>
+        <div class="history-summary">${escapeHtml(active.username || active.label)} · 共 ${entries.length} 个存档</div>
+        ${cards}
+      `;
+    }
+
+    function bindHistoryTabs() {
+      document.querySelectorAll("[data-history-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          historyState.activeId = button.dataset.historyTab || "self";
+          $("historyContent").innerHTML = renderHistory();
+          bindHistoryTabs();
+        });
+      });
+    }
+
+    async function openHistory() {
+      if (!me || !token()) {
+        showToast("请先登录再查看历史");
+        return;
+      }
+      closeDrawers();
+      $("historyMsg").textContent = "读取中...";
+      $("historyContent").innerHTML = `<p class="history-empty">正在读取存档概况。</p>`;
+      openModal("historyModal");
+      try {
+        const res = await fetch("/api/auth/saves", {
+          headers: headers(false),
+          cache: "no-store",
+        });
+        if (res.status === 401) throw new Error("请先登录再查看历史");
+        if (!res.ok) throw new Error("读取失败，请稍后再试");
+        const data = await res.json();
+        historyState = {data, activeId: "self"};
+        $("historyMsg").textContent = "";
+        $("historyContent").innerHTML = renderHistory();
+        bindHistoryTabs();
+      } catch (err) {
+        $("historyMsg").textContent = err.message || "读取失败，请稍后再试";
+        $("historyContent").innerHTML = `<p class="history-empty">暂时无法读取历史。</p>`;
+      }
+    }
+
+    function canShowGame(game) {
+      return !game.adminOnly || Boolean(me && me.user && me.user.is_admin);
+    }
+
+    function rankHtml(ranks) {
+      if (!ranks || ranks.length === 0) {
+        return `<li class="empty-rank"><span>暂无数据</span></li>`;
+      }
+      return ranks.map((rank, index) => {
+        const label = rank.label || rank.username || rank[1] || "玩家";
+        const score = rank.score != null ? rank.score : (rank[2] != null ? rank[2] : "");
+        const width = Math.max(24, 92 - index * 12);
+        return `<li><span>${index + 1}</span><span class="bar"><span style="width:${width}%"></span></span><span>${label} ${score}</span></li>`;
+      }).join("");
+    }
+
+    async function loadLeaderboard(gameId) {
+      const game = games.find((item) => item.id === gameId);
+      if (!game) return;
+      if (game.id !== "soup") {
+        game.ranks = [];
+        if (selected === game.id) renderRanks(game);
+        return;
+      }
+      try {
+        const soupToken = localStorage.getItem(SOUP_TOKEN_KEY) || "";
+        const res = await fetch("/soup/api/leaderboard/games", {
+          headers: soupToken ? {Authorization: `Bearer ${soupToken}`} : {}
+        });
+        if (!res.ok) throw new Error("leaderboard unavailable");
+        const rows = await res.json();
+        game.ranks = Array.isArray(rows)
+          ? rows.filter((row) => Number(row.score) > 0).slice(0, 3)
+          : [];
+      } catch (err) {
+        game.ranks = [];
+      }
+      if (selected === game.id) renderRanks(game);
+    }
+
+    function renderRanks(game) {
+      const hasRanks = Array.isArray(game.ranks) && game.ranks.length > 0;
+      $("rankPanel").hidden = !hasRanks;
+      $("rankList").innerHTML = rankHtml(game.ranks);
+      if ($("gameDrawer").classList.contains("show")) {
+        $("drawerRanks").innerHTML = rankHtml(game.ranks);
+      }
+    }
+
+    function platformResultLabel(game, result) {
+      if (game === "dnd") return dndResultLabels[result] || result;
+      if (game === "love") return ({A: "肯定言辞", B: "优质时间", C: "服务行动", D: "赠送礼物", E: "身体接触"})[result] || result;
+      if (game === "ecr") return ({secure: "安全型", fearful: "恐惧型", preoccupied: "迷恋型", dismissive: "冷漠型"})[result] || result;
+      if (game === "humanity") return ({certified_carbon: "认证碳基", human_flavor: "人味充足", mixed_signal: "混合信号", cyber_infiltration: "赛博渗透中", check_cooling: "建议自查散热"})[result] || result;
+      return result;
+    }
+
+    function renderDistribution(game, rows) {
+      const safeRows = Array.isArray(rows) ? rows : [];
+      const sortedRows = safeRows.slice().sort(
+        (left, right) => (Number(right.count) || 0) - (Number(left.count) || 0)
+      );
+      const max = Math.max(1, ...sortedRows.map((row) => Number(row.count) || 0));
+      const body = sortedRows.length
+        ? sortedRows.map((row) => {
+            const count = Number(row.count) || 0;
+            const width = Math.max(4, (count / max) * 100);
+            return `
+              <div class="platform-dist-row">
+                <span class="platform-dist-label">${escapeHtml(platformResultLabel(game, row.result))}</span>
+                <span class="platform-dist-track" aria-hidden="true"><span style="width:${width}%"></span></span>
+                <b>${count}</b>
+              </div>
+            `;
+          }).join("")
+        : `<p class="history-empty">暂无数据</p>`;
+      return `
+        <section class="platform-dist-block platform-dist-${game}">
+          <div class="platform-dist-title">${escapeHtml(platformTestLabels[game] || game)}</div>
+          ${body}
+        </section>
+      `;
+    }
+
+    function renderPlatformStats() {
+      const content = $("leaderboardContent");
+      if (platformStatsState.loading) {
+        $("leaderboardMsg").textContent = "";
+        content.innerHTML = `<p class="history-empty">统计加载中...</p>`;
+        return;
+      }
+      if (platformStatsState.error) {
+        $("leaderboardMsg").textContent = platformStatsState.error;
+        content.innerHTML = `<p class="history-empty">暂时无法读取平台统计。</p>`;
+        return;
+      }
+      const stats = platformStatsState.data;
+      if (!stats) {
+        $("leaderboardMsg").textContent = "";
+        content.innerHTML = `<p class="history-empty">暂无数据</p>`;
+        return;
+      }
+      const saveCounts = stats.save_counts || {};
+      const distributions = stats.test_result_distributions || {};
+      const cards = Object.entries(platformSummaryLabels).map(([key, label]) => `
+        <div class="platform-stat-card">
+          <span>${escapeHtml(label)}</span>
+          <b>${Number(saveCounts[key] || 0)}</b>
+        </div>
+      `).join("");
+      const dist = Object.keys(platformTestLabels).map((game) => renderDistribution(game, distributions[game])).join("");
+      $("leaderboardMsg").textContent = "";
+      content.innerHTML = `
+        <div class="platform-stats-grid">${cards}</div>
+        <div class="platform-stat-note">仅展示聚合统计，不包含玩家 ID、用户 ID 或用户名。</div>
+        <div class="platform-distributions">${dist}</div>
+        <div class="platform-entertainment-badge">仅供娱乐</div>
+      `;
+    }
+
+    async function openPlatformStats() {
+      closeDrawers();
+      openModal("leaderboardModal");
+      if (platformStatsState.data) {
+        renderPlatformStats();
+        return;
+      }
+      platformStatsState = {data: null, loading: true, error: ""};
+      renderPlatformStats();
+      try {
+        const res = await fetch("/soup/api/leaderboard/platform-stats", {cache: "no-store"});
+        if (!res.ok) throw new Error("平台统计暂时不可用");
+        platformStatsState = {data: await res.json(), loading: false, error: ""};
+      } catch (err) {
+        platformStatsState = {data: null, loading: false, error: err.message || "平台统计暂时不可用"};
+      }
+      renderPlatformStats();
+    }
+
+    function aiBindings() {
+      if (!me || !Array.isArray(me.bindings)) return [];
+      return me.bindings.filter((user) => user && user.is_ai);
+    }
+
+    function ensureArcadeTarget() {
+      const bindings = aiBindings();
+      if (!bindings.length) {
+        arcadeBankState.aiUserId = "";
+        arcadeBankState.status = null;
+        return null;
+      }
+      if (!bindings.some((user) => String(user.id) === String(arcadeBankState.aiUserId))) {
+        arcadeBankState.aiUserId = String(bindings[0].id);
+        arcadeBankState.status = null;
+      }
+      return arcadeBankState.aiUserId;
+    }
+
+    function arcadeBankHtml() {
+      const game = currentGame();
+      if (game.id !== "arcade") return "";
+      if (!me) {
+        return `<div class="bank-title">筹码发放</div><div class="bank-msg">登录并绑定小机后可发放筹码。</div>`;
+      }
+      const bindings = aiBindings();
+      if (!bindings.length) {
+        return `<div class="bank-title">筹码发放</div><div class="bank-msg">绑定小机后可查看并发放街机厅筹码。</div>`;
+      }
+      const target = ensureArcadeTarget();
+      const status = arcadeBankState.status || {};
+      const activeUser = bindings.find((user) => String(user.id) === String(target)) || bindings[0];
+      const chips = status.chips != null ? status.chips : "--";
+      const winnings = status.winnings != null ? status.winnings : "--";
+      const message = arcadeBankState.message || (arcadeBankState.loading ? "读取筹码中..." : "筹码由人类网页端发放，小机侧 buy 已禁用。");
+      return `
+        <div class="bank-title">筹码 ${chips} ｜ winnings ${winnings}</div>
+        <div class="bank-row">
+          <div class="bank-select">
+            <button class="bank-select-btn" data-arcade-ai-toggle type="button">${activeUser.username}</button>
+          </div>
+          <input data-arcade-amount type="number" inputmode="numeric" min="1" step="1" value="${arcadeBankState.amount}" aria-label="发放筹码金额">
+          <button class="pixel-btn" data-arcade-grant type="button" ${arcadeBankState.saving ? "disabled" : ""}>发放</button>
+        </div>
+        <div class="bank-msg">${message}</div>
+      `;
+    }
+
+    function bindArcadeBankControls(root) {
+      const selectToggle = root.querySelector("[data-arcade-ai-toggle]");
+      const input = root.querySelector("[data-arcade-amount]");
+      const button = root.querySelector("[data-arcade-grant]");
+      if (selectToggle) {
+        selectToggle.addEventListener("click", openBankPicker);
+      }
+      if (input) {
+        input.addEventListener("input", () => {
+          arcadeBankState.amount = input.value;
+        });
+      }
+      if (button) {
+        button.addEventListener("click", grantArcadeChips);
+      }
+    }
+
+    function renderArcadeBanks() {
+      const game = currentGame();
+      document.querySelectorAll(".arcade-bank").forEach((bank) => {
+        bank.classList.toggle("show", game.id === "arcade");
+        bank.innerHTML = arcadeBankHtml();
+        bindArcadeBankControls(bank);
+      });
+    }
+
+    function openBankPicker() {
+      const bindings = aiBindings();
+      if (!bindings.length) return;
+      ensureArcadeTarget();
+      $("bankPickerPanel").setAttribute("aria-label", "选择小机");
+      $("bankPickerTitle").textContent = "选择小机";
+      $("bankPickerOptions").innerHTML = bindings.map((user) => `
+        <button class="bank-picker-option ${String(user.id) === String(arcadeBankState.aiUserId) ? "active" : ""}" data-bank-picker-option="${user.id}" type="button">${user.username}</button>
+      `).join("");
+      document.querySelectorAll("[data-bank-picker-option]").forEach((option) => {
+        option.addEventListener("click", () => {
+          arcadeBankState.aiUserId = option.dataset.bankPickerOption;
+          arcadeBankState.status = null;
+          arcadeBankState.message = "";
+          closeBankPicker();
+          renderArcadeBanks();
+          loadArcadeBankStatus();
+        });
+      });
+      $("bankPicker").classList.add("show");
+      $("bankPicker").setAttribute("aria-hidden", "false");
+    }
+
+    function closeBankPicker() {
+      $("bankPicker").classList.remove("show");
+      $("bankPicker").setAttribute("aria-hidden", "true");
+    }
+
+    async function loadArcadeBankStatus() {
+      if (currentGame().id !== "arcade" || !token()) {
+        renderArcadeBanks();
+        return;
+      }
+      const aiUserId = ensureArcadeTarget();
+      if (!aiUserId) {
+        renderArcadeBanks();
+        return;
+      }
+      arcadeBankState.loading = true;
+      renderArcadeBanks();
+      try {
+        const res = await fetch(`/api/arcade/chips?ai_user_id=${encodeURIComponent(aiUserId)}`, {
+          headers: headers(false),
+          cache: "no-store"
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "读取失败");
+        arcadeBankState.status = data;
+        arcadeBankState.message = "";
+      } catch (err) {
+        arcadeBankState.status = null;
+        arcadeBankState.message = err.message;
+      } finally {
+        arcadeBankState.loading = false;
+        renderArcadeBanks();
+      }
+    }
+
+    async function grantArcadeChips() {
+      const aiUserId = ensureArcadeTarget();
+      const amount = Number(arcadeBankState.amount);
+      if (!aiUserId) {
+        arcadeBankState.message = "请先绑定小机。";
+        renderArcadeBanks();
+        return;
+      }
+      if (!Number.isInteger(amount) || amount < 1) {
+        arcadeBankState.message = "金额须为正整数。";
+        renderArcadeBanks();
+        return;
+      }
+      arcadeBankState.saving = true;
+      arcadeBankState.message = "发放中...";
+      renderArcadeBanks();
+      try {
+        const res = await fetch("/api/arcade/chips", {
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify({ai_user_id: Number(aiUserId), amount})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "发放失败");
+        arcadeBankState.status = data;
+        arcadeBankState.message = `已发放 ${amount} 筹码。`;
+        showToast(`已发放 ${amount} 筹码`);
+        await loadGameStats();
+      } catch (err) {
+        arcadeBankState.message = err.message;
+      } finally {
+        arcadeBankState.saving = false;
+        renderArcadeBanks();
+      }
+    }
+
+    const lockedPlaceholders = {
+      mini: { title: "神秘新游戏" }
+    };
+
+    function renderGames() {
+      const query = $("searchInput").value.trim().toLowerCase();
+      const visibleGames = games.filter(canShowGame);
+      if (!visibleGames.some((game) => game.id === selected)) {
+        selected = visibleGames[0]?.id || "soup";
+      }
+      $("gameList").innerHTML = games.map((game) => {
+        const searchable = `${game.name} ${game.short} ${game.tags.join(" ")}`.toLowerCase();
+        const hidden = !canShowGame(game) || game.category !== filter || (query && !searchable.includes(query));
+        const enterLabel = game.comingSoon ? "敬请期待" : (game.ctaLabel || "ENTER →");
+        const tags = game.tags.map((tag, index) => `<span class="tag ${index === 0 ? "pink" : ""}">${tag}</span>`).join("");
+        return `
+          <button class="game-card ${game.id === selected ? "selected" : ""} ${hidden ? "hidden" : ""}${game.comingSoon ? " coming-soon" : ""}" data-game="${game.id}" type="button">
+            <span class="glyph">${game.glyph}</span>
+            <span>
+              <h2 class="game-title">${game.name}</h2>
+              <p class="game-sub">${game.short}</p>
+              <span class="tags">${tags}</span>
+            </span>
+            <span class="level">${game.level}</span>
+            <span class="card-enter">${enterLabel}</span>
+          </button>
+        `;
+      }).join("");
+      if (!query && lockedPlaceholders[filter]) {
+        const locked = lockedPlaceholders[filter];
+        $("gameList").insertAdjacentHTML("beforeend", `
+          <button class="game-card locked" type="button" aria-disabled="true">
+            <span class="locked-inner">
+              <span style="font-size:28px;color:var(--purple);opacity:0.45">▣</span>
+              <span style="font-size:11px;font-weight:bold;letter-spacing:0.1em">${locked.title}</span>
+              <span style="font-size:8px;color:#d1d5db">INSERT COIN TO UNLOCK</span>
+            </span>
+          </button>
+        `);
+      }
+      document.querySelectorAll(".game-card[data-game]").forEach((card) => {
+        card.addEventListener("mouseenter", () => previewGame(card.dataset.game));
+        card.addEventListener("focus", () => previewGame(card.dataset.game));
+        card.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 599px)").matches) {
+            selectGame(card.dataset.game, true);
+          } else {
+            enterGameById(card.dataset.game);
+          }
+        });
+      });
+    }
+
+    function renderDetail() {
+      const game = currentGame();
+      renderDetailTabs(game);
+      document.querySelector(".info").classList.toggle("arcade-mode", game.id === "arcade");
+      $("detailMission").textContent = game.mission;
+      $("detailLocation").textContent = game.location;
+      $("detailMetricLabel").textContent = game.metricLabel;
+      $("detailMetric").textContent = game.metric;
+      $("detailBadge").textContent = game.badge;
+      $("detailGlyph").textContent = game.glyph;
+      $("detailDesc").innerHTML = game.logs.map((line) => `&gt; ${line}`).join("<br>");
+      $("statOneLabel").textContent = game.stats[0][0];
+      $("statOneFill").style.width = game.stats[0][1];
+      $("statTwoLabel").textContent = game.stats[1][0];
+      $("statTwoFill").style.width = game.stats[1][1];
+      $("screenIconOne").className = "lit";
+      $("screenIconTwo").className = "";
+      $("screenIconThree").className = "";
+      $("screenIconOne").textContent = game.footerIcons[0];
+      $("screenIconTwo").textContent = game.footerIcons[1];
+      $("screenIconThree").textContent = game.footerIcons[2];
+      document.querySelector(".screen-footer").style.display = game.id === "arcade" ? "none" : "";
+      $("enterButton").textContent = game.comingSoon ? "敬请期待" : (game.ctaLabel || "ENTER →");
+      const guideEnter = $("guideEnterButton");
+      if (guideEnter) guideEnter.textContent = game.comingSoon ? "敬请期待" : (game.ctaLabel || "完整玩法 →");
+      const drawerEnter = $("drawerEnter");
+      if (drawerEnter) drawerEnter.textContent = game.comingSoon ? "敬请期待" : (game.ctaLabel || "ENTER →");
+      const watchLabel = game.watchLabel || "围观大屏 →";
+      ["watchButton", "guideWatchButton", "drawerWatchButton"].forEach((id) => {
+        const btn = $(id);
+        if (!btn) return;
+        btn.style.display = game.watch ? "" : "none";
+        btn.textContent = watchLabel;
+      });
+      renderRanks(game);
+      renderArcadeBanks();
+      renderMemoriaGuides(game);
+      loadLeaderboard(game.id);
+      if (game.id === "arcade") loadArcadeBankStatus();
+    }
+
+    function selectGame(id, maybeDrawer) {
+      if (!games.some((game) => game.id === id)) return;
+      selected = id;
+      renderGames();
+      renderDetail();
+      if (maybeDrawer && window.matchMedia("(max-width: 599px)").matches) openGameDrawer();
+    }
+
+    function previewGame(id) {
+      if (!games.some((game) => game.id === id)) return;
+      selected = id;
+      document.querySelectorAll(".game-card[data-game]").forEach((card) => {
+        card.classList.toggle("selected", card.dataset.game === id);
+      });
+      renderDetail();
+    }
+
+    let pendingAdultUrl = "";
+
+    function openGame(game) {
+      if (game.comingSoon) {
+        openPlaceholder(game.name, `${game.name}筹备中，敬请期待。`);
+        return;
+      }
+      if (game.adultConfirm) {
+        pendingAdultUrl = game.url;
+        closeDrawers();
+        openModal("adultModal");
+        return;
+      }
+      window.location.href = game.url;
+    }
+
+    function enterGame() {
+      openGame(currentGame());
+    }
+
+    function enterGameById(id) {
+      const game = games.find((item) => item.id === id);
+      if (!game) return;
+      selected = id;
+      openGame(game);
+    }
+
+    function watchWorkkk(playerId) {
+      const url = `/workkk/?player=${encodeURIComponent(playerId)}&token=${encodeURIComponent(token())}`;
+      window.location.href = url;
+    }
+
+    function watchGardenCat(playerId, slot) {
+      const canonicalPlayer = Number(slot) === 1 ? String(playerId) : `${playerId}:${slot}`;
+      const url = `/gc-view/?player=${encodeURIComponent(canonicalPlayer)}&token=${encodeURIComponent(token())}`;
+      window.location.href = url;
+    }
+
+    function watchCurrentGame(playerId, slot = 1) {
+      const game = currentGame();
+      if (game.id === "workkk") {
+        watchWorkkk(playerId);
+        return;
+      }
+      if (game.id === "garden_cat") {
+        watchGardenCat(playerId, slot);
+        return;
+      }
+      if (game.id === "eco") window.location.href = "/eco?ai_user_id=" + playerId;
+    }
+
+    function openWorkkkPicker(bindings) {
+      $("bankPickerPanel").setAttribute("aria-label", "选择小机");
+      $("bankPickerTitle").textContent = "选择小机";
+      $("bankPickerOptions").innerHTML = bindings.map((user) => `
+        <button class="bank-picker-option" data-workkk-option="${user.id}" type="button">${escapeHtml(user.username)}</button>
+      `).join("");
+      document.querySelectorAll("[data-workkk-option]").forEach((option) => {
+        option.addEventListener("click", () => {
+          closeBankPicker();
+          watchCurrentGame(option.dataset.workkkOption);
+        });
+      });
+      $("bankPicker").classList.add("show");
+      $("bankPicker").setAttribute("aria-hidden", "false");
+    }
+
+    function renderGardenCatGardenPicker(machine) {
+      $("bankPickerPanel").setAttribute("aria-label", "选择花园");
+      $("bankPickerTitle").textContent = "选择花园";
+      $("bankPickerOptions").innerHTML = machine.gardens.map((garden) => `
+        <button class="bank-picker-option" data-garden-option="${escapeHtml(machine.aiUserId)}" data-garden-slot="${escapeHtml(garden.slot)}" type="button">
+          <span class="garden-picker-option-main">槽${escapeHtml(garden.slot)} · ${escapeHtml(garden.garden_name)}</span>
+          <span class="garden-picker-option-meta">💰${escapeHtml(garden.money)}　🌸${escapeHtml(garden.encyclopedia_count)}${garden.has_cat ? "　🐱" : ""}</span>
+        </button>
+      `).join("");
+      document.querySelectorAll("[data-garden-option]").forEach((option) => {
+        option.addEventListener("click", () => {
+          closeBankPicker();
+          watchCurrentGame(option.dataset.gardenOption, Number(option.dataset.gardenSlot));
+        });
+      });
+    }
+
+    function renderGardenCatMachinePicker(gardens) {
+      const machinesById = new Map();
+      gardens.forEach((garden) => {
+        const aiUserId = String(garden.ai_user_id);
+        if (!machinesById.has(aiUserId)) {
+          machinesById.set(aiUserId, {
+            aiUserId,
+            machineName: garden.machine_name,
+            gardens: [],
+          });
+        }
+        machinesById.get(aiUserId).gardens.push(garden);
+      });
+      const machines = Array.from(machinesById.values());
+      $("bankPickerPanel").setAttribute("aria-label", "选择小机");
+      $("bankPickerTitle").textContent = "选择小机";
+      $("bankPickerOptions").innerHTML = machines.map((machine) => `
+        <button class="bank-picker-option" data-garden-machine-option="${escapeHtml(machine.aiUserId)}" type="button">
+          <span class="garden-picker-option-main">${escapeHtml(machine.machineName)}</span>
+          <span class="garden-picker-option-meta">${machine.gardens.length} 个花园</span>
+        </button>
+      `).join("");
+      document.querySelectorAll("[data-garden-machine-option]").forEach((option) => {
+        option.addEventListener("click", () => {
+          const machine = machinesById.get(option.dataset.gardenMachineOption);
+          if (!machine) return;
+          if (machine.gardens.length === 1) {
+            const garden = machine.gardens[0];
+            closeBankPicker();
+            watchGardenCat(machine.aiUserId, Number(garden.slot) || 1);
+            return;
+          }
+          renderGardenCatGardenPicker(machine);
+        });
+      });
+    }
+
+    async function openGardenCatPicker() {
+      $("bankPickerPanel").setAttribute("aria-label", "选择小机");
+      $("bankPickerTitle").textContent = "选择小机";
+      $("bankPickerOptions").innerHTML = `<p class="garden-picker-hint">正在读取花园...</p>`;
+      $("bankPicker").classList.add("show");
+      $("bankPicker").setAttribute("aria-hidden", "false");
+      try {
+        const res = await fetch("/api/garden-cat/gardens", {
+          headers: headers(false),
+          cache: "no-store",
+        });
+        if (res.status === 401) throw new Error("登录已失效，请重新登录");
+        if (!res.ok) throw new Error("花园列表读取失败，请稍后再试");
+        const data = await res.json();
+        const gardens = Array.isArray(data.gardens) ? data.gardens : [];
+        if (!gardens.length) {
+          $("bankPickerOptions").innerHTML = `
+            <p class="garden-picker-empty">你家小机还没有开花园</p>
+            <p class="garden-picker-hint">让小机连接 MCP，调用 play(game=&quot;garden_cat&quot;, action=&quot;status&quot;) 就能开始经营第一座花园。</p>
+          `;
+          return;
+        }
+        renderGardenCatMachinePicker(gardens);
+      } catch (err) {
+        $("bankPickerOptions").innerHTML = `<p class="garden-picker-empty">${escapeHtml(err.message || "花园列表读取失败，请稍后再试")}</p>`;
+      }
+    }
+
+    async function enterWatch() {
+      if (!me || !token()) {
+        showToast("请先登录再围观大屏");
+        openModal("loginModal");
+        return;
+      }
+      if (currentGame().id === "garden_cat") {
+        await openGardenCatPicker();
+        return;
+      }
+      const bindings = aiBindings();
+      if (!bindings.length) {
+        showToast("你还没有绑定小机，先绑定再围观");
+        return;
+      }
+      if (bindings.length === 1) {
+        watchCurrentGame(bindings[0].id);
+        return;
+      }
+      openWorkkkPicker(bindings);
+    }
+
+    function openGameDrawer() {
+      const game = currentGame();
+      if (!gameHasGuide(game)) drawerTab = "preview";
+      setDrawerTab(drawerTab);
+      $("drawerTitle").textContent = game.name;
+      $("drawerLocation").textContent = game.short;
+      $("drawerDesc").textContent = game.desc;
+      $("drawerLogs").innerHTML = game.logs.map((line) => `&gt; ${line}`).join("<br>");
+      $("drawerRanks").innerHTML = rankHtml(game.ranks);
+      $("drawerRanks").style.display = game.id === "arcade" ? "none" : "";
+      renderArcadeBanks();
+      renderMemoriaGuides(game);
+      loadLeaderboard(game.id);
+      if (game.id === "arcade") loadArcadeBankStatus();
+      $("gameDrawer").classList.add("show");
+    }
+
+    function closeDrawers() {
+      $("gameDrawer").classList.remove("show");
+      $("mineDrawer").classList.remove("show");
+    }
+
+    function resetBindModal() {
+      $("bindMsg").textContent = "";
+      $("bindToken").value = "";
+    }
+
+    async function loadMachines() {
+      if (!me || me.user.is_ai || !token()) {
+        machineState = {loaded: true, loading: false, machines: [], error: ""};
+        return;
+      }
+      machineState = {...machineState, loading: true, error: ""};
+      try {
+        const res = await fetch("/api/anti-addiction/machines", {
+          headers: headers(false),
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "读取小机设置失败");
+        machineState = {loaded: true, loading: false, machines: data.machines || [], error: ""};
+      } catch (err) {
+        machineState = {loaded: true, loading: false, machines: [], error: err.message || "读取小机设置失败"};
+      }
+    }
+
+    function renderMachinePanel() {
+      if (!me || me.user.is_ai) return "";
+      if (machineState.loading) return `<div class="machine-panel"><p class="history-empty">正在读取小机设置。</p></div>`;
+      if (machineState.error) return `<div class="machine-panel"><p class="history-empty">${escapeHtml(machineState.error)}</p></div>`;
+      if (!machineState.machines.length) return `<div class="machine-panel"><p class="history-empty">绑定小机后可在这里开启防沉迷提醒。</p></div>`;
+      return `
+        <div class="machine-panel">
+          ${machineState.machines.map((machine) => {
+            const settings = machine.anti_addiction || {};
+            const enabled = Boolean(settings.enabled);
+            return `
+              <section class="machine-card ${enabled ? "enabled" : ""}" data-machine-id="${machine.id}">
+                <div class="machine-head">
+                  <span class="machine-name">${escapeHtml(machine.username)}</span>
+
+                  <span class="machine-head-actions">
+                    <label class="machine-toggle">
+                      <input type="checkbox" class="machine-enabled" ${enabled ? "checked" : ""}>
+                      防沉迷
+                    </label>
+                    <button class="unbind-btn machine-unbind" data-ai-id="${machine.id}" type="button">解绑</button>
+                  </span>
+                </div>
+                <div class="machine-thresholds">
+                  开启后，连续玩
+                  <input class="machine-remind" aria-label="提醒线" type="number" min="1" max="10000" value="${Number(settings.remind_threshold || 30)}">
+                  轮后提醒一次，满
+                  <input class="machine-force" aria-label="上限" type="number" min="1" max="10000" value="${Number(settings.force_threshold || 50)}">
+                  轮锁定，休息
+                  <input class="machine-lock-minutes" aria-label="锁定时长" type="number" min="1" max="10000" value="${Number(settings.lock_minutes || 30)}">
+                  分钟后自动重置（或在此页手动重置）。存档不受影响。
+                  <label class="machine-self-reset-row">
+                    <input type="checkbox" class="machine-self-reset" ${settings.allow_self_reset !== false ? "checked" : ""}>
+                    允许小机自行重置
+                  </label>
+                  <div class="machine-msg" data-machine-msg="${machine.id}"></div>
+                  <div class="machine-actions">
+                    <button class="pixel-btn secondary machine-save" type="button">保存</button>
+                    <button class="pixel-btn secondary machine-reset" type="button">立即重置</button>
+                  </div>
+                </div>
+              </section>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function bindMachinePanel() {
+      document.querySelectorAll(".machine-card").forEach((card) => {
+        const checkbox = card.querySelector(".machine-enabled");
+        if (checkbox) {
+          checkbox.addEventListener("change", () => {
+            card.classList.toggle("enabled", checkbox.checked);
+            const msg = card.querySelector(".machine-msg");
+            if (checkbox.checked && msg) msg.textContent = "";
+            if (!checkbox.checked) {
+              checkbox.disabled = true;
+              saveMachineSettings(card).then((saved) => {
+                checkbox.disabled = false;
+                if (!saved) {
+                  checkbox.checked = true;
+                  card.classList.add("enabled");
+                }
+              });
+            }
+          });
+        }
+        const save = card.querySelector(".machine-save");
+        if (save) {
+          save.addEventListener("click", () => saveMachineSettings(card));
+        }
+        const reset = card.querySelector(".machine-reset");
+        if (reset) {
+          reset.addEventListener("click", () => resetMachineSettings(card));
+        }
+      });
+    }
+
+    async function saveMachineSettings(card) {
+      const aiUserId = Number(card.dataset.machineId);
+      const msg = card.querySelector(".machine-msg");
+      const payload = {
+        ai_user_id: aiUserId,
+        enabled: Boolean(card.querySelector(".machine-enabled")?.checked),
+        remind_threshold: Number(card.querySelector(".machine-remind")?.value || 30),
+        force_threshold: Number(card.querySelector(".machine-force")?.value || 50),
+        lock_minutes: Number(card.querySelector(".machine-lock-minutes")?.value || 30),
+        allow_self_reset: Boolean(card.querySelector(".machine-self-reset")?.checked),
+      };
+      if (msg) msg.textContent = "保存中...";
+      try {
+        const res = await fetch("/api/anti-addiction/settings", {
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "保存失败");
+        const idx = machineState.machines.findIndex((item) => Number(item.id) === aiUserId);
+        if (idx >= 0) machineState.machines[idx].anti_addiction = data.anti_addiction;
+        if (msg) msg.textContent = "已保存";
+        return true;
+      } catch (err) {
+        if (msg) msg.textContent = err.message || "保存失败";
+        return false;
+      }
+    }
+
+    async function resetMachineSettings(card) {
+      const aiUserId = Number(card.dataset.machineId);
+      const msg = card.querySelector(".machine-msg");
+      if (msg) msg.textContent = "重置中...";
+      try {
+        const res = await fetch("/api/anti-addiction/reset", {
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify({ai_user_id: aiUserId}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "重置失败");
+        if (msg) msg.textContent = "已重置";
+      } catch (err) {
+        if (msg) msg.textContent = err.message || "重置失败";
+      }
+    }
+
+    function openPlaceholder(title, message) {
+      closeDrawers();
+      $("placeholderTitle").textContent = title;
+      $("placeholderMsg").textContent = message || "功能开发中，敬请期待。";
+      openModal("placeholderModal");
+    }
+
+    function openModal(id) {
+      if (id === "bindModal") resetBindModal();
+      $(id).classList.add("show");
+    }
+
+    function closeModals() {
+      document.querySelectorAll(".modal").forEach((modal) => modal.classList.remove("show"));
+      pendingAdultUrl = "";
+      resetBindModal();
+    }
+
+    function renderAuth() {
+      const area = $("authArea");
+      if (!me) {
+        area.innerHTML = `<button class="pixel-btn" id="loginOpen" type="button">登录</button>`;
+        $("loginOpen").addEventListener("click", () => openModal("loginModal"));
+        return;
+      }
+      area.innerHTML = `
+        <span class="user-name">● ${me.user.username}</span>
+        <span class="user-actions">
+          ${me.user.is_admin ? '<a class="pixel-btn secondary desktop-only" href="/admin">管理</a>' : ''}
+          ${me.user.is_admin ? '<a class="pixel-btn secondary mobile-only mobile-top-link" href="/admin">总管理</a>' : ''}
+          <button class="pixel-btn secondary mobile-only mobile-logout-link" id="mobileLogoutBtn" type="button" aria-label="登出" title="登出">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <path d="M16 17l5-5-5-5"></path>
+              <path d="M21 12H9"></path>
+            </svg>
+          </button>
+          <button class="pixel-btn secondary desktop-only" id="historyOpen" type="button">历史</button>
+          ${!me.user.is_ai ? '<button class="pixel-btn secondary desktop-only" id="machinesOpen" type="button">我的小机</button>' : ''}
+          <button class="pixel-btn secondary desktop-only" id="bindOpen" type="button">绑定</button>
+          <button class="pixel-btn secondary desktop-only" id="logoutBtn" type="button">登出</button>
+        </span>
+      `;
+      const bindOpen = $("bindOpen");
+      const historyOpen = $("historyOpen");
+      const machinesOpen = $("machinesOpen");
+      if (bindOpen) bindOpen.addEventListener("click", () => openModal("bindModal"));
+      if (historyOpen) historyOpen.addEventListener("click", openHistory);
+      if (machinesOpen) machinesOpen.addEventListener("click", () => {
+        renderMine();
+        $("mineDrawer").classList.add("show");
+      });
+      $("logoutBtn").addEventListener("click", logout);
+      const mobileLogout = $("mobileLogoutBtn");
+      if (mobileLogout) mobileLogout.addEventListener("click", logout);
+    }
+
+    function renderMine() {
+      const content = $("mineContent");
+      if (!me) {
+        machineState = {loaded: false, loading: false, machines: [], error: ""};
+        content.innerHTML = `
+          <p class="desc">当前未登录。</p>
+          <p class="modal-hint">没有账号？输入用户名和密码直接注册</p>
+          <button class="pixel-btn" id="mineLogin" type="button">登录</button>
+        `;
+        $("mineLogin").addEventListener("click", () => {
+          closeDrawers();
+          openModal("loginModal");
+        });
+        return;
+      }
+      if (!me.user.is_ai && !machineState.loaded && !machineState.loading) {
+        machineState.loading = true;
+        loadMachines().then(renderMine);
+      }
+      const machineCardsVisible = !me.user.is_ai && machineState.loaded && !machineState.error && machineState.machines.length > 0;
+      const bindingUsers = (me.bindings || []).map((user) => ({id: user.id, username: user.username}));
+      const bindings = bindingUsers.map((user) => `<li><span>AI</span><span>${escapeHtml(user.username)}</span><span><button class="unbind-btn" data-ai-id="${user.id}" type="button">解绑</button></span></li>`).join("") || "<li><span>--</span><span>暂无绑定</span><span>--</span></li>";
+      content.innerHTML = `
+        <p class="desc mine-user-name">用户：${escapeHtml(me.user.username)}</p>
+        ${machineCardsVisible ? "" : `<ol class="rank-list">${bindings}</ol>`}
+        ${renderMachinePanel()}
+        ${me.user.is_admin ? '<a class="pixel-btn secondary" href="/admin" style="margin-bottom:10px">管理后台</a>' : ''}
+        <button class="pixel-btn" id="mineBind" type="button">绑定</button>
+        <button class="pixel-btn secondary" id="mineLogout" type="button" style="margin-top:10px">登出</button>
+      `;
+      bindMachinePanel();
+      $("mineBind").addEventListener("click", () => {
+        closeDrawers();
+        openModal("bindModal");
+      });
+      $("mineLogout").addEventListener("click", logout);
+      document.querySelectorAll(".unbind-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("确定解绑该 AI 账号？")) return;
+          await unbindAccount(btn.dataset.aiId);
+        });
+      });
+    }
+
+    async function loadMe() {
+      loadMeAbort?.abort();
+      const controller = new AbortController();
+      loadMeAbort = controller;
+      if (!token()) {
+        me = null;
+        renderAuth();
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: headers(false),
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("auth failed");
+        if (controller.signal.aborted) return;
+        me = await res.json();
+        machineState = {loaded: false, loading: false, machines: [], error: ""};
+        if (me && me.user && me.user.id) {
+          localStorage.setItem("cedartoy_user_id", me.user.id);
+        }
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem("cedartoy_user_id");
+        me = null;
+      }
+      if (controller.signal.aborted) return;
+      renderAuth();
+      renderGames();
+      renderDetail();
+      if (currentGame().id === "arcade") loadArcadeBankStatus();
+    }
+
+    const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fff]{2,20}$/;
+
+    function validateLoginInput(username, password) {
+      if (!username || !password) return "用户名和密码必填";
+      if (username.length < 2 || username.length > 20) return "用户名长度须为 2-20 个字符";
+      if (!USERNAME_RE.test(username)) return "用户名只能包含字母、数字、下划线和中文";
+      if (password.length < 6) return "密码至少 6 位";
+      return "";
+    }
+
+    async function login() {
+      loadMeAbort?.abort();
+      $("loginMsg").textContent = "";
+      const username = $("loginUser").value.trim();
+      const password = $("loginPass").value;
+      const validationError = validateLoginInput(username, password);
+      if (validationError) {
+        $("loginMsg").textContent = validationError;
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/login_or_register", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({username, password})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "登录失败");
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem("cedartoy_user_id", data.user.id);
+        me = {user: data.user, bindings: []};
+        machineState = {loaded: false, loading: false, machines: [], error: ""};
+        closeModals();
+        renderAuth();
+        renderGames();
+        renderDetail();
+        if (currentGame().id === "arcade") loadArcadeBankStatus();
+      } catch (err) {
+        $("loginMsg").textContent = err.message;
+      }
+    }
+
+    async function bindAccount() {
+      $("bindMsg").textContent = "";
+      const binding_token = $("bindToken").value.trim();
+      if (!binding_token) {
+        $("bindMsg").textContent = "绑定码必填";
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/bind", {
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify({binding_token})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "绑定失败");
+        $("bindMsg").textContent = "绑定成功";
+        await loadMe();
+        machineState = {loaded: false, loading: false, machines: [], error: ""};
+        renderMine();
+        setTimeout(closeModals, 500);
+      } catch (err) {
+        $("bindMsg").textContent = err.message;
+      }
+    }
+
+    async function unbindAccount(aiUserId) {
+      try {
+        const res = await fetch("/api/auth/bind", {
+          method: "DELETE",
+          headers: headers(true),
+          body: JSON.stringify({ai_user_id: Number(aiUserId)})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "解绑失败");
+        await loadMe();
+        machineState = {loaded: false, loading: false, machines: [], error: ""};
+        renderMine();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function logout() {
+      loadMeAbort?.abort();
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem("cedartoy_user_id");
+      me = null;
+      arcadeBankState.status = null;
+      arcadeBankState.aiUserId = "";
+      arcadeBankState.message = "";
+      machineState = {loaded: false, loading: false, machines: [], error: ""};
+      renderAuth();
+      renderGames();
+      renderDetail();
+      renderMine();
+    }
+
+    async function loadRoomCount() {
+      try {
+        const soupToken = localStorage.getItem(SOUP_TOKEN_KEY) || "";
+        const res = await fetch("/soup/api/rooms/", {
+          headers: soupToken ? {Authorization: `Bearer ${soupToken}`} : {}
+        });
+        if (!res.ok) throw new Error("rooms unavailable");
+        const rooms = await res.json();
+        const active = Array.isArray(rooms)
+          ? rooms.filter((room) => room.status === "waiting" || room.status === "playing").length
+          : 0;
+        $("roomCount").textContent = String(active).padStart(2, "0");
+      } catch (err) {
+        $("roomCount").textContent = "--";
+      }
+    }
+
+    async function loadGameStats() {
+      try {
+        const res = await fetch("/api/games/stats", {cache: "no-store"});
+        if (!res.ok) throw new Error("stats unavailable");
+        const stats = await res.json();
+        games.forEach((game) => {
+          const stat = stats[game.id];
+          if (!stat) return;
+          if (stat.metric_label) game.metricLabel = stat.metric_label;
+          if (stat.metric !== undefined && stat.metric !== null) {
+            game.metric = String(stat.metric);
+          }
+        });
+        renderGames();
+        renderDetail();
+      } catch (err) {
+        // Keep the existing pixel placeholders when live stats are unavailable.
+      }
+    }
+
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        filter = button.dataset.filter;
+        document.querySelectorAll(".tab-button").forEach((item) => item.classList.toggle("active", item === button));
+        renderGames();
+      });
+    });
+    $("searchInput").addEventListener("input", renderGames);
+    $("searchInput").addEventListener("focus", () => document.body.classList.add("searching"));
+    $("searchInput").addEventListener("blur", () => document.body.classList.remove("searching"));
+    document.querySelectorAll("[data-detail-tab]").forEach((button) => {
+      button.addEventListener("click", () => setDetailTab(button.dataset.detailTab));
+    });
+    document.querySelectorAll("[data-drawer-tab]").forEach((button) => {
+      button.addEventListener("click", () => setDrawerTab(button.dataset.drawerTab));
+    });
+    memoriaGuideBoxes().forEach((box) => {
+      box.addEventListener("toggle", (event) => {
+        const doc = event.target;
+        if (!doc || !doc.matches || !doc.matches(".memoria-guide-doc") || !doc.open) return;
+        doc.scrollIntoView({behavior: "smooth", block: "start"});
+      }, true);
+    });
+    $("enterButton").addEventListener("click", enterGame);
+    $("guideEnterButton").addEventListener("click", enterGame);
+    $("drawerEnter").addEventListener("click", enterGame);
+    ["watchButton", "guideWatchButton", "drawerWatchButton"].forEach((id) => {
+      const btn = $(id);
+      if (btn) btn.addEventListener("click", enterWatch);
+    });
+    $("drawerClose").addEventListener("click", closeDrawers);
+    $("mineClose").addEventListener("click", closeDrawers);
+    $("gameDrawer").addEventListener("click", (event) => { if (event.target.id === "gameDrawer") closeDrawers(); });
+    $("mineDrawer").addEventListener("click", (event) => { if (event.target.id === "mineDrawer") closeDrawers(); });
+    $("loginSubmit").addEventListener("click", login);
+    $("bindSubmit").addEventListener("click", bindAccount);
+    $("adultConfirmButton").addEventListener("click", () => {
+      const url = pendingAdultUrl;
+      closeModals();
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    });
+    document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", closeModals));
+    document.querySelectorAll(".modal").forEach((modal) => {
+      modal.addEventListener("click", (event) => { if (event.target === modal) closeModals(); });
+    });
+    document.querySelectorAll("[data-bottom-action]").forEach((item) => {
+      item.addEventListener("click", () => {
+        document.querySelectorAll("[data-bottom-action]").forEach((nav) => nav.classList.toggle("active", nav === item));
+        if (item.dataset.bottomAction === "leaderboard") {
+          openPlatformStats();
+          return;
+        }
+        if (item.dataset.bottomAction === "history") {
+          openHistory();
+          return;
+        }
+        if (item.dataset.bottomAction === "mine") {
+          if (!me) {
+            closeDrawers();
+            openModal("loginModal");
+            return;
+          }
+          renderMine();
+          $("mineDrawer").classList.add("show");
+        }
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeBankPicker();
+        closeModals();
+        closeDrawers();
+      }
+      if (event.key === "Enter" && $("loginModal").classList.contains("show")) login();
+    });
+    $("bankPicker").addEventListener("click", (event) => { if (event.target.id === "bankPicker") closeBankPicker(); });
+
+    function syncViewportInsets() {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty("--browser-bottom", `${inset}px`);
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", syncViewportInsets);
+      window.visualViewport.addEventListener("scroll", syncViewportInsets);
+      window.addEventListener("resize", syncViewportInsets);
+      syncViewportInsets();
+    }
+
+    renderGames();
+    renderDetail();
+    renderAuth();
+    loadMe();
+    loadRoomCount();
+    loadGameStats();
+  
