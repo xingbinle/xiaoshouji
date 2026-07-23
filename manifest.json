@@ -1,7 +1,7 @@
 {
   "name": "小手机",
   "short_name": "小手机",
-  "description": "月月的私人 AI 聊天玩具，支持自定义人设、多模态、HTML 预览",
+  "description": "轻量级 AI 聊天 PWA，支持多模态与 HTML 预览",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
