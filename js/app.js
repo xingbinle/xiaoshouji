@@ -369,16 +369,17 @@ async function sendMessage(text, imageDataUrl = null) {
 
   try {
     const apiMessages = state.messages.map((m) => {
+      const role = m.role === 'ai' ? 'assistant' : m.role;
       if (m.imageUrl) {
         return {
-          role: m.role,
+          role,
           content: [
             { type: 'text', text: m.text || '请看这张图片' },
             { type: 'image_url', image_url: { url: m.imageUrl } },
           ],
         };
       }
-      return { role: m.role, content: m.text };
+      return { role, content: m.text };
     }).filter((m) => {
       if (m.role === 'user' && (m.content === '' || (Array.isArray(m.content) && !m.content.length))) return false;
       return true;
