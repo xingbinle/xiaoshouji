@@ -1,0 +1,419 @@
+/* ============================================
+   主题：暗色 · Kiki（小手机 v1.0 默认）
+   设计基调：暖深棕黑 + 月光米白 + 星蓝 + 暖金
+   特点：
+   - 不纯黑：保留书卷气
+   - 星点纹理：4-5 个 1px 星点 + 顶部蓝色光晕
+   - 阴影改为"内描边 + 微光"，不再是黑色 drop-shadow
+   - loadingBubble 三点用 sky 色 + 蓝色微光
+   ============================================ */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* === 纸张色谱 → 夜纸色谱 === */
+  --paper:      #1B1614;
+  --paper-2:    #261E1B;
+  --paper-3:    #302621;
+
+  /* === 墨色 → 月光色谱 === */
+  --ink:        #F2EBE0;
+  --ink-soft:   #C9BBB0;
+  --ink-light:  #9F9187;
+
+  /* === 淡蓝 → 星蓝色谱 === */
+  --sky:        #7DB0E0;
+  --sky-deep:   #A6C8E8;
+  --sky-light:  #31506A;
+  --sky-pale:   #223443;
+  --sky-mist:   #2A3D4B;
+
+  /* === 金：保留气质，提亮一档 === */
+  --gold:       #E5B86E;
+  --gold-soft:  #F0CE91;
+
+  /* === 边框：改为亮色微透明 === */
+  --line:        rgba(242, 235, 224, 0.16);
+  --line-soft:   rgba(242, 235, 224, 0.08);
+  --line-strong: rgba(242, 235, 224, 0.28);
+
+  /* === 阴影：暗背景下"投影"几乎看不见 === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40), 0 2px 6px rgba(16, 12, 10, 0.32);
+  --shadow-md: 0 2px 5px rgba(0, 0, 0, 0.46), 0 8px 18px rgba(16, 12, 10, 0.36);
+  --shadow-lg: 0 5px 12px rgba(0, 0, 0, 0.54), 0 18px 38px rgba(16, 12, 10, 0.42);
+}
+
+/* === 身体背景：主色 + 顶部蓝色光晕 + 星点噪点 === */
+[data-theme="dark"] body {
+  background-color: var(--paper);
+  color: var(--ink);
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -10%, rgba(125, 176, 224, 0.18), transparent 60%),
+    radial-gradient(circle at 12% 18%, rgba(125, 176, 224, 0.10) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 34%, rgba(229, 184, 110, 0.08) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 34% 76%, rgba(242, 235, 224, 0.06) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 92% 84%, rgba(125, 176, 224, 0.08) 0 1px, transparent 1.5px);
+  background-size: auto, 71px 79px, 113px 127px, 97px 109px, 151px 137px;
+}
+
+/* === 顶部栏 === */
+[data-theme="dark"] .topbar {
+  background: rgba(27, 22, 20, 0.86);
+  border-color: var(--line-soft);
+}
+
+[data-theme="dark"] .brand-glyph {
+  color: var(--paper);
+  box-shadow: 0 2px 10px rgba(125, 176, 224, 0.32);
+}
+
+/* === 通用按钮 === */
+[data-theme="dark"] .icon-btn,
+[data-theme="dark"] .sticker-btn,
+[data-theme="dark"] .more-btn,
+[data-theme="dark"] .close-btn,
+[data-theme="dark"] .msg-action-btn {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .icon-btn:hover,
+[data-theme="dark"] .sticker-btn:hover,
+[data-theme="dark"] .more-btn:hover,
+[data-theme="dark"] .close-btn:hover,
+[data-theme="dark"] .msg-action-btn:hover {
+  background: var(--sky-pale);
+  color: var(--sky);
+  border-color: var(--sky);
+}
+
+/* === 头像与欢迎屏装饰 === */
+[data-theme="dark"] .welcome-ornament,
+[data-theme="dark"] .avatar,
+[data-theme="dark"] .more-menu-item .icon {
+  background: var(--sky-pale);
+  color: var(--sky);
+  border-color: var(--sky-light);
+}
+
+[data-theme="dark"] .message.user .avatar {
+  background: rgba(229, 184, 110, 0.14);
+  color: var(--gold);
+  border-color: rgba(229, 184, 110, 0.42);
+}
+
+[data-theme="dark"] .avatar.loading::after {
+  border-top-color: var(--sky);
+  border-right-color: var(--sky-deep);
+}
+
+/* === 消息气泡 === */
+[data-theme="dark"] .message.ai .bubble,
+[data-theme="dark"] .image-placeholder,
+[data-theme="dark"] .sticker-placeholder {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .message.user .bubble {
+  background: var(--sky);
+  color: var(--paper);
+  border-color: rgba(125, 176, 224, 0.72);
+  box-shadow: 0 2px 8px rgba(125, 176, 224, 0.22), var(--shadow-sm);
+}
+
+/* pending 消息 - 橙色虚线（暗色下用深底配金色） */
+[data-theme="dark"] .message.pending .bubble {
+  background: rgba(229, 184, 110, 0.12);
+  border-color: var(--gold);
+}
+
+[data-theme="dark"] .message.pending.user .bubble {
+  background: rgba(229, 184, 110, 0.16);
+  color: var(--ink);
+  border-color: var(--gold-soft);
+}
+
+/* === 代码块 / artifact === */
+[data-theme="dark"] .bubble pre {
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .message.user .bubble pre {
+  background: rgba(27, 22, 20, 0.30);
+  color: var(--paper);
+}
+
+[data-theme="dark"] .bubble-artifact {
+  background: var(--paper);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .artifact-header {
+  background: var(--sky-mist);
+  border-color: var(--line-soft);
+  color: var(--ink-soft);
+}
+
+[data-theme="dark"] .artifact-btn,
+[data-theme="dark"] .artifact-preview {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .artifact-btn:hover {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: var(--paper);
+}
+
+[data-theme="dark"] .artifact-label .icon,
+[data-theme="dark"] .artifact-btn .icon {
+  color: var(--sky);
+}
+
+/* === LoadingBubble：暗色下最重要的细节 === */
+[data-theme="dark"] .loading-bubble {
+  background: var(--sky-pale);
+  border-color: rgba(125, 176, 224, 0.34);
+  box-shadow: 0 4px 16px rgba(125, 176, 224, 0.14), var(--shadow-sm);
+}
+
+[data-theme="dark"] .loading-bubble .dot {
+  background: var(--sky);
+  box-shadow: 0 0 8px rgba(125, 176, 224, 0.56);
+  animation: breathe 1.4s var(--ease-in-out) infinite;
+}
+
+/* LoadingBubble 可点击停止的反馈 */
+[data-theme="dark"] .loading-bubble.interactive {
+  cursor: pointer;
+}
+
+[data-theme="dark"] .loading-bubble.interactive:hover {
+  background: var(--sky-light);
+  border-color: var(--sky);
+}
+
+[data-theme="dark"] .loading-bubble.interactive:active {
+  transform: scale(0.97);
+}
+
+/* === 输入区 === */
+[data-theme="dark"] .input-area {
+  background: rgba(27, 22, 20, 0.94);
+  border-color: var(--line-soft);
+}
+
+[data-theme="dark"] .input-field,
+[data-theme="dark"] .field-input {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .input-field:focus,
+[data-theme="dark"] .field-input:focus {
+  background: var(--paper-3);
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(125, 176, 224, 0.18), 0 0 18px rgba(125, 176, 224, 0.12);
+}
+
+[data-theme="dark"] .input-field::placeholder,
+[data-theme="dark"] .field-input::placeholder {
+  color: var(--ink-light);
+}
+
+/* === 按钮 === */
+[data-theme="dark"] .send-btn,
+[data-theme="dark"] .reveal-btn,
+[data-theme="dark"] .btn-primary {
+  background: var(--sky);
+  color: var(--paper);
+  border-color: var(--sky);
+  box-shadow: 0 2px 10px rgba(125, 176, 224, 0.24);
+}
+
+[data-theme="dark"] .send-btn:hover,
+[data-theme="dark"] .reveal-btn:hover,
+[data-theme="dark"] .btn-primary:hover {
+  background: var(--sky-deep);
+  border-color: var(--sky-deep);
+}
+
+[data-theme="dark"] #revealKeyBtn,
+[data-theme="dark"] .btn-secondary {
+  background: var(--paper-2);
+  color: var(--sky);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] #revealKeyBtn:hover,
+[data-theme="dark"] .btn-secondary:hover {
+  background: var(--sky-pale);
+  color: var(--sky);
+  border-color: var(--sky);
+}
+
+[data-theme="dark"] .btn-danger {
+  color: #E59A9A;
+  border-color: rgba(229, 154, 154, 0.32);
+}
+
+[data-theme="dark"] .btn-danger:hover {
+  background: rgba(229, 154, 154, 0.12);
+  border-color: #E59A9A;
+}
+
+/* === 弹窗 === */
+[data-theme="dark"] .more-menu,
+[data-theme="dark"] .settings-content,
+[data-theme="dark"] .settings-header,
+[data-theme="dark"] .settings-footer,
+[data-theme="dark"] .help-content,
+[data-theme="dark"] .voice-content {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .settings-header,
+[data-theme="dark"] .help-header {
+  background: var(--paper-2);
+  border-color: var(--line-soft);
+}
+
+[data-theme="dark"] .more-menu-item:hover,
+[data-theme="dark"] .more-menu-item:active {
+  background: var(--sky-pale);
+}
+
+[data-theme="dark"] .more-menu-item .badge,
+[data-theme="dark"] .help-body code {
+  background: var(--sky-light);
+  color: var(--sky);
+}
+
+[data-theme="dark"] .field-input:hover:not(:focus) {
+  border-color: var(--line-strong);
+}
+
+[data-theme="dark"] .settings-mask,
+[data-theme="dark"] .help-mask,
+[data-theme="dark"] .voice-mask {
+  background: rgba(8, 6, 5, 0.68);
+}
+
+/* === 多选删除条 === */
+[data-theme="dark"] .multi-delete-bar {
+  background: var(--sky-deep);
+  color: var(--paper);
+  box-shadow: 0 4px 14px rgba(125, 176, 224, 0.22);
+}
+
+[data-theme="dark"] .multi-delete-confirm {
+  background: var(--paper-2);
+  color: var(--sky);
+}
+
+[data-theme="dark"] .multi-delete-confirm:hover {
+  background: var(--paper-3);
+}
+
+[data-theme="dark"] .multi-delete-cancel {
+  background: rgba(27, 22, 20, 0.32);
+  color: var(--paper);
+}
+
+[data-theme="dark"] .message.multi-selected {
+  background: rgba(125, 176, 224, 0.14);
+  box-shadow: 0 0 0 2px var(--sky) inset;
+}
+
+[data-theme="dark"] .message.multi-selected::before {
+  background: var(--sky);
+  color: var(--paper);
+  box-shadow: 0 2px 6px rgba(125, 176, 224, 0.32);
+}
+
+/* === 其他小细节 === */
+[data-theme="dark"] .draft-preview {
+  background: var(--sky-mist);
+  border-color: var(--sky);
+}
+
+[data-theme="dark"] .draft-item {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .voice-transcript {
+  border-color: var(--line-soft);
+  color: var(--ink-soft);
+}
+
+[data-theme="dark"] .edited-mark {
+  color: var(--ink-light);
+}
+
+/* 暗背景下 emoji / 图片用 lighten 防止太脏 */
+[data-theme="dark"] .icon,
+[data-theme="dark"] svg.icon {
+  /* 不影响所有 icon，只针对某些纯色填充 */
+}
+
+[data-theme="dark"] .welcome-paw .icon {
+  color: var(--sky);
+}
+
+/* === 暗色滚动条 === */
+[data-theme="dark"] .chat-container,
+[data-theme="dark"] .settings-body,
+[data-theme="dark"] .help-body {
+  scrollbar-color: var(--sky-light) transparent;
+  scrollbar-width: thin;
+}
+
+[data-theme="dark"] .chat-container::-webkit-scrollbar,
+[data-theme="dark"] .settings-body::-webkit-scrollbar,
+[data-theme="dark"] .help-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+[data-theme="dark"] .chat-container::-webkit-scrollbar-track,
+[data-theme="dark"] .settings-body::-webkit-scrollbar-track,
+[data-theme="dark"] .help-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme="dark"] .chat-container::-webkit-scrollbar-thumb,
+[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb,
+[data-theme="dark"] .help-body::-webkit-scrollbar-thumb {
+  background: var(--sky-light);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background-clip: padding-box;
+}
+
+[data-theme="dark"] .chat-container::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .help-body::-webkit-scrollbar-thumb:hover {
+  background: var(--sky-deep);
+}
+
+/* === 欢迎屏背景化（精简版：只有 🐾 + Kiki） === */
+[data-theme="dark"] .welcome-paw {
+  background: var(--sky-pale);
+  color: var(--sky);
+  border-color: var(--sky-light);
+  box-shadow: 0 0 24px rgba(125, 176, 224, 0.18);
+}
+
+[data-theme="dark"] .welcome-name {
+  color: var(--ink-soft);
+}
