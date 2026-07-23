@@ -198,6 +198,11 @@ function buildMessageNode(msg, idx) {
       src: msg.imageUrl,
       alt: '图片',
     }));
+  } else if (msg.type === 'image') {
+    // AI 想发图片但目前没真实图片 URL，渲染成 placeholder
+    bubble.appendChild(el('div', { class: 'image-placeholder' }, '🖼️ ' + (msg.text || '[图片]')));
+  } else if (msg.type === 'sticker') {
+    bubble.appendChild(el('div', { class: 'sticker-placeholder' }, '😀 ' + (msg.text || '[表情包]')));
   } else if (msg.text) {
     const parts = splitCodeBlocks(msg.text);
     parts.forEach((part) => {
@@ -515,28 +520,9 @@ async function sendMessage() {
   // 先把当前输入框内容也加进去
   enterSendToChat();
 
-  // 检查是否有 pending 消息
-  const hasPending = state.messages.some((m) => m.pending);
-  if (!hasPending) {
-    // 空文本模式：让 AI 继续读上下文
-    // 取最后一条用户消息，丢弃其后所有 AI 回复
-    const lastUserIdx = (() => {
-      for (let i = state.messages.length - 1; i >= 0; i--) {
-        if (state.messages[i].role === 'user' && state.messages[i].type !== 'recall') return i;
-      }
-      return -1;
-    })();
-    if (lastUserIdx < 0) return;
-    state.messages = state.messages.slice(0, lastUserIdx + 1);
-    renderMessages();
-  }
-
   // 把所有 pending 标记去掉（已发送给 AI）
   state.messages.forEach((m) => {
-    if (m.pending) {
-      m.pending = false;
-      // 标记为已编辑过的消息，编辑标记清除
-    }
+    if (m.pending) m.pending = false;
   });
 
   $('loadingBubble').hidden = false;
@@ -602,24 +588,47 @@ async function sendMessage() {
 
 // 解析 AI 回复（支持 JSON 多消息格式）
 function parseAIResponse(raw) {
-  // 先尝试从原始文本中提取最外层的 JSON 对象
-  const jsonMatch = raw.match(/\{[\s\S]*?"messages"[\s\S]*?\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.messages && Array.isArray(parsed.messages)) {
-        return parsed.messages.map((m) => ({
-          type: m.type || 'text',
-          text: m.content || '',
-          duration: m.duration,
-          sticker: m.sticker,
-        }));
+  if (!raw || typeof raw !== 'string') {
+    return [{ type: 'text', text: String(raw || '') }];
+  }
+
+  // 1. 先尝试从原始文本中提取最外层的 JSON 对象（贪婪匹配到最后一个 }）
+  //    用 [\s\S]* 而非 [\s\S]*? 避免只匹配到一半
+  const startIdx = raw.indexOf('{');
+  if (startIdx !== -1) {
+    // 从第一个 { 开始，找到最后一个匹配的 }
+    let depth = 0;
+    let endIdx = -1;
+    for (let i = startIdx; i < raw.length; i++) {
+      if (raw[i] === '{') depth++;
+      if (raw[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
       }
-    } catch (e) {
-      // 解析失败，下面 fallback
+    }
+    if (endIdx !== -1) {
+      const jsonStr = raw.slice(startIdx, endIdx + 1);
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.messages && Array.isArray(parsed.messages)) {
+          return parsed.messages.map((m) => ({
+            type: m.type || 'text',
+            text: m.content || '',
+            duration: m.duration,
+            sticker: m.sticker,
+            imageUrl: m.imageUrl,
+          }));
+        }
+      } catch (e) {
+        // 解析失败，fallback
+      }
     }
   }
-  // 兼容老格式：纯文本
+
+  // 2. 兼容：纯文本
   return [{ type: 'text', text: raw }];
 }
 
