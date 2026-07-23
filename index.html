@@ -13,8 +13,33 @@
   <link rel="apple-touch-icon" href="assets/icon-512.svg">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes/dark.css" id="themeDark" disabled>
+  <!-- 首屏关键CSS：加载指示器（内联，不等外部CSS） -->
+  <style>
+    #appLoading {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #1B1614; color: #C9BBB0;
+      font-family: system-ui, -apple-system, sans-serif;
+      z-index: 9999;
+    }
+    #appLoading .paw {
+      width: 48px; height: 48px;
+      animation: appLoadBounce 1.2s ease-in-out infinite;
+    }
+    @keyframes appLoadBounce {
+      0%, 100% { transform: translateY(0); opacity: 0.6; }
+      50% { transform: translateY(-12px); opacity: 1; }
+    }
+    #appLoading .text { margin-top: 16px; font-size: 14px; letter-spacing: 0.05em; }
+    .app-loaded #appLoading { display: none; }
+  </style>
 </head>
 <body>
+  <!-- 首屏加载指示器（JS未就绪时显示） -->
+  <div id="appLoading">
+    <div class="paw">🐾</div>
+    <div class="text">小手机加载中…</div>
+  </div>
 
   <!-- SVG 图标 sprite（内联，确保 file:// 也能用） -->
   <div id="iconSprite" style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
