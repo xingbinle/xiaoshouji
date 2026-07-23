@@ -146,6 +146,24 @@ function renderMessages() {
     container.appendChild(buildMessageNode(msg, idx));
   });
 
+  // 如果当前不在多选模式，强制清理残留的 multi-select class
+  // （解决 renderMessages 后旧 class 没被清除的问题）
+  if (!multiDeleteMode) {
+    document.querySelectorAll('.message.multi-select-active, .message.multi-selected').forEach((node) => {
+      node.classList.remove('multi-select-active', 'multi-selected');
+    });
+  } else {
+    // 在多选模式下，给所有消息加 active class 并绑事件
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.message').forEach((node) => {
+        if (!node.classList.contains('multi-select-active')) {
+          node.classList.add('multi-select-active');
+          node.addEventListener('click', toggleMultiSelect);
+        }
+      });
+    });
+  }
+
   setTimeout(() => {
     const chat = $('chatContainer');
     chat.scrollTop = chat.scrollHeight;
@@ -170,6 +188,10 @@ function buildMessageNode(msg, idx) {
   } else {
     avatar.appendChild(icon('i-paw', 'icon'));
     avatar.style.color = 'var(--sky-deep)';
+    // AI 头像：最后一条且正在生成时，加 loading class 显示转圈
+    if (idx === state.messages.length - 1 && state.aiGenerating && msg.role === 'ai') {
+      avatar.classList.add('loading');
+    }
   }
 
   const bubbleWrap = el('div', { class: 'bubble-wrap' });
@@ -527,6 +549,7 @@ async function sendMessage() {
 
   $('loadingBubble').hidden = false;
   $('sendBtn').disabled = true;
+  state.aiGenerating = true;
 
   try {
     const apiMessages = state.messages.map((m) => {
@@ -583,6 +606,9 @@ async function sendMessage() {
   } finally {
     $('loadingBubble').hidden = true;
     $('sendBtn').disabled = false;
+    state.aiGenerating = false;
+    // 重新渲染以清除头像 loading class
+    renderMessages();
   }
 }
 
@@ -851,9 +877,14 @@ function exitMultiDeleteMode() {
   multiDeleteSelected.clear();
   $('multiDeleteBar').hidden = true;
   document.body.style.overflow = '';
+  // 彻底清理所有残留的 multi-* class 和事件监听器
   document.querySelectorAll('.message').forEach((node) => {
     node.classList.remove('multi-select-active', 'multi-selected');
-    node.removeEventListener('click', toggleMultiSelect);
+    // cloneNode 替换是清理事件监听器最可靠的方法
+    const clone = node.cloneNode(true);
+    if (node.parentNode) {
+      node.parentNode.replaceChild(clone, node);
+    }
   });
 }
 
