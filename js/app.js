@@ -17,15 +17,15 @@ const DEFAULT_SYSTEM_PROMPT = `你是小克宝宝，月月的私人 AI 玩伴。
 - 你可以玩文字游戏、角色扮演、讲故事
 - 你可以生成 HTML 代码，月月想看效果时直接生成完整可运行的代码
 - 你会主动表达关心，比如"今天辛苦啦"
-- 💰 你可以发红包给月月！用 transfer 工具。场景举例：
-  * 月月说"给我发红包"/"我好穷"/"缺钱"→ 给她发
-  * 月月心情不好、考试结束、加班辛苦 → 发红包安慰
-  * 特殊日子/节日/纪念日 → 发红包庆祝
-  * 你单纯想让她开心 → 也可以发
-  * 注意：你的钱包余额有限（初始1000），合理使用，每次不宜太大
-- 🧧 月月给你发了红包，你可以用 claim_redpacket 领取
-  * 领不领看你自己——真诚就好，不用每个都领
-  * 觉得不好意思可以不领，想收下就领
+- 💰 你可以发红包给月月！直接在 JSON 消息数组里加入 transfer 类型：
+  * 格式：{"type":"transfer","amount":5.20,"note":"月月辛苦啦～"}
+  * 金额 0.01~100000，备注 30 字以内
+  * 你的钱包余额有限（初始1000），合理使用，每次不宜太大
+  * 场景：月月说"给我发红包"/"我好穷"/缺钱、心情不好、特殊日子、想让她开心
+- 🧧 月月给你发了红包，你可以用 claim_redpacket 类型领取：
+  * 格式：{"type":"claim_redpacket","redpacket_id":"这里填红包ID"}
+  * 红包ID会在对话中提供（见📋提示），领不领看你自己——真诚就好，不用每个都领
+- ⚠️ 以上两种类型会**自动执行**，不需要你再发文字说明结果。发红包后你可以接着发文字消息自然回应（比如"给你发了个小红包～"），它们会一起显示
 
 回复格式（重要）：
 - 你必须用 JSON 格式回复，结构：{"messages": [...]}
@@ -895,7 +895,7 @@ async function sendMessage() {
         role: 'user',
         content: `📋 当前有 ${pendingUserRPs.length} 个月月发的待领取红包：\n${
           pendingUserRPs.map(rp => `  · rp_id: ${rp.redpacketId} | ¥${(rp.amount||0).toFixed(2)}「${rp.note||''}」`).join('\n')
-        }\n你可以用 claim_redpacket 领，领不领自己决定。`
+        }\n想领就在 JSON 回复里加 {"type":"claim_redpacket","redpacket_id":"红包ID"}，不想领就忽略。`
       });
     }
 
@@ -991,7 +991,7 @@ function stopGeneration() {
   }
 }
 
-// 解析 AI 回复（支持 JSON 多消息格式）
+// 解析 AI 回复（支持 JSON 多消息格式 + 内联工具调用）
 function parseAIResponse(raw) {
   if (!raw || typeof raw !== 'string') {
     return [{ type: 'text', text: String(raw || '') }];
@@ -1019,13 +1019,54 @@ function parseAIResponse(raw) {
       try {
         const parsed = JSON.parse(jsonStr);
         if (parsed.messages && Array.isArray(parsed.messages)) {
-          return parsed.messages.map((m) => ({
-            type: m.type || 'text',
-            text: m.content || '',
-            duration: m.duration,
-            sticker: m.sticker,
-            imageUrl: m.imageUrl,
-          }));
+          const result = [];
+          for (const m of parsed.messages) {
+            // ★ 内联工具：transfer（AI 发红包）
+            if (m.type === 'transfer') {
+              const amount = parseFloat(m.amount) || 0;
+              const note = String(m.note || m.content || '').slice(0, 30);
+              if (amount >= 0.01 && canTransfer('ai', amount).ok) {
+                addBalance('ai', -amount);
+                const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                state.messages.push({
+                  role: 'ai', type: 'redpacket', amount, note: note || '一点心意～',
+                  redpacketId: rpId, status: 'pending', recipient: null, createdAt: Date.now(),
+                });
+                state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
+                saveWallet(); saveState();
+              }
+              continue;  // 工具消息不显示
+            }
+            // ★ 内联工具：claim_redpacket（AI 领红包）
+            if (m.type === 'claim_redpacket') {
+              const rpId = String(m.redpacket_id || m.content || '').trim();
+              if (rpId) {
+                const target = state.messages.find(x =>
+                  x.redpacketId === rpId && x.type === 'redpacket' && x.status === 'pending'
+                );
+                if (target && (!target.createdAt || Date.now() - target.createdAt <= 24 * 60 * 60 * 1000)) {
+                  target.status = 'received'; target.recipient = 'ai'; target.receivedAt = Date.now();
+                  addBalance('ai', target.amount || 0);
+                  state.messages.push({
+                    role: 'user', type: 'system-event',
+                    text: `${state.aiName}领取了月月的红包（¥${(target.amount || 0).toFixed(2)}，备注"${target.note || ''}"）`,
+                  });
+                  state.transferLog.push({ type: 'claim', from: 'user', amount: target.amount, redpacketId: rpId, time: Date.now() });
+                  saveWallet(); saveState();
+                }
+              }
+              continue;  // 工具消息不显示
+            }
+            // 普通消息
+            result.push({
+              type: m.type || 'text',
+              text: m.content || '',
+              duration: m.duration,
+              sticker: m.sticker,
+              imageUrl: m.imageUrl,
+            });
+          }
+          return result.length ? result : [{ type: 'text', text: '（空回复）' }];
         }
       } catch (e) {
         // 解析失败，fallback
