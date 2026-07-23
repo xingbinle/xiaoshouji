@@ -1021,12 +1021,69 @@ a {
 }
 
 .settings-footer {
-  position: sticky;
-  bottom: 0;
   background: var(--paper);
   padding: var(--gap-md) 0;
   margin-top: var(--gap-lg);
   border-top: 1px solid var(--line-soft);
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+/* 消息气泡外层 - 用于放置操作按钮 */
+.bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 78%;
+}
+
+.message.user .bubble-wrap {
+  align-items: flex-end;
+}
+
+/* 单条消息操作按钮 */
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out);
+  padding: 0 4px;
+}
+
+.message:hover .msg-actions,
+.message:focus-within .msg-actions {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-light);
+  background: var(--paper-2);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s var(--ease-out);
+}
+
+.msg-action-btn:hover {
+  color: var(--sky-deep);
+  background: var(--sky-pale);
+  border-color: var(--sky);
+}
+
+.msg-action-btn .icon-sm {
+  width: 12px;
+  height: 12px;
+}
+
+/* 移动端：消息操作按钮始终显示（避免 hover 不友好） */
+@media (hover: none) {
+  .msg-actions {
+    opacity: 0.7;
+  }
 }
 
 /* ============================================
