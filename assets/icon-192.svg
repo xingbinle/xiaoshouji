@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#DCE8F2"/>
+      <stop offset="100%" stop-color="#A8C8E8"/>
+    </linearGradient>
+    <linearGradient id="phoneGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBF8F4"/>
+      <stop offset="100%" stop-color="#F5EDE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bgGrad)"/>
+  <!-- 手机轮廓 -->
+  <rect x="58" y="36" width="76" height="120" rx="14" fill="url(#phoneGrad)" stroke="#5C5463" stroke-width="2"/>
+  <rect x="66" y="48" width="60" height="92" rx="4" fill="#FBF8F4" stroke="#9C8F86" stroke-width="0.5"/>
+  <!-- 屏幕内的对话气泡 -->
+  <rect x="74" y="64" width="32" height="8" rx="4" fill="#A8C8E8"/>
+  <rect x="74" y="78" width="44" height="8" rx="4" fill="#A8C8E8" opacity="0.7"/>
+  <rect x="86" y="100" width="32" height="8" rx="4" fill="#D4A95C" opacity="0.8"/>
+  <rect x="86" y="114" width="24" height="8" rx="4" fill="#D4A95C" opacity="0.6"/>
+  <!-- Home 键 -->
+  <circle cx="96" cy="148" r="4" fill="#9C8F86" opacity="0.5"/>
+</svg>

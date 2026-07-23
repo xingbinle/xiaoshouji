@@ -1,0 +1,7 @@
+# 账户信息（包含密码等敏感内容）
+ACCOUNT_NOTES.md
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
