@@ -1482,9 +1482,6 @@ function sendRedpacket() {
   updateWalletDisplay();
   closeTransferPanel();
   toast(`已发送红包 ¥${amount.toFixed(2)} ✓`);
-
-  // 触发 AI 回复（让 AI 看到红包消息）
-  sendMessage();
 }
 
 function claimRedpacket(idx, cardEl) {
