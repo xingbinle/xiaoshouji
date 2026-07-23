@@ -209,6 +209,13 @@
     </button>
   </header>
 
+  <!-- 多选删除模式（仅在 multiDeleteMode=true 时由 JS 显示，绝不默认显示） -->
+  <div class="multi-delete-bar" id="multiDeleteBar" hidden>
+    <span class="multi-delete-tip" id="multiDeleteTip">点消息切换选择</span>
+    <button class="multi-delete-cancel" id="multiDeleteCancel">取消</button>
+    <button class="multi-delete-confirm" id="multiDeleteConfirm">删除选中</button>
+  </div>
+
   <!-- 聊天区 -->
   <main class="chat-container" id="chatContainer">
     <div class="welcome-screen" id="welcomeScreen">
@@ -498,12 +505,7 @@
     </div>
   </div>
 
-  <!-- 多选删除模式（顶部 sticky 提示条，不遮挡底部输入区） -->
-  <div class="multi-delete-bar" id="multiDeleteBar" hidden>
-    <span class="multi-delete-tip">点消息切换选择</span>
-    <button class="btn-secondary" id="multiDeleteCancel">取消</button>
-    <button class="btn-danger" id="multiDeleteConfirm">删除选中</button>
-  </div>
+  <!-- 多选删除条已移至 topbar 之后（见上方）-->
 
   <!-- 图标 sprite 已在 <body> 顶部内联，无需 fetch -->
   <script src="js/app.js"></script>

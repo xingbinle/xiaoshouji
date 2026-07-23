@@ -547,9 +547,9 @@ async function sendMessage() {
     if (m.pending) m.pending = false;
   });
 
-  $('loadingBubble').hidden = false;
   $('sendBtn').disabled = true;
   state.aiGenerating = true;
+  syncLoadingBubble();
 
   try {
     const apiMessages = state.messages.map((m) => {
@@ -604,9 +604,9 @@ async function sendMessage() {
     saveState();
     renderMessages();
   } finally {
-    $('loadingBubble').hidden = true;
-    $('sendBtn').disabled = false;
     state.aiGenerating = false;
+    $('sendBtn').disabled = false;
+    syncLoadingBubble();
     // 重新渲染以清除头像 loading class
     renderMessages();
   }
@@ -842,7 +842,9 @@ function enterMultiDeleteMode() {
   }
   multiDeleteMode = true;
   multiDeleteSelected.clear();
-  $('multiDeleteBar').hidden = false;
+  const bar = $('multiDeleteBar');
+  bar.hidden = false;
+  bar.style.display = 'flex'; // 强制显示，防御性写法
   document.body.style.overflow = 'hidden';
   // 给所有消息加 class
   document.querySelectorAll('.message').forEach((node) => {
@@ -875,12 +877,13 @@ function updateMultiDeleteBtn() {
 function exitMultiDeleteMode() {
   multiDeleteMode = false;
   multiDeleteSelected.clear();
-  $('multiDeleteBar').hidden = true;
+  const bar = $('multiDeleteBar');
+  bar.hidden = true;
+  bar.style.display = ''; // 清除 inline style
   document.body.style.overflow = '';
   // 彻底清理所有残留的 multi-* class 和事件监听器
   document.querySelectorAll('.message').forEach((node) => {
     node.classList.remove('multi-select-active', 'multi-selected');
-    // cloneNode 替换是清理事件监听器最可靠的方法
     const clone = node.cloneNode(true);
     if (node.parentNode) {
       node.parentNode.replaceChild(clone, node);
@@ -889,17 +892,26 @@ function exitMultiDeleteMode() {
 }
 
 function confirmMultiDelete() {
-  if (multiDeleteSelected.size === 0) return;
-  if (!confirm(`删除选中的 ${multiDeleteSelected.size} 条消息？`)) return;
+  if (multiDeleteSelected.size === 0) {
+    // 没选就直接退出
+    exitMultiDeleteMode();
+    return;
+  }
   // 倒序删除，避免索引错位
   const sortedIdxs = [...multiDeleteSelected].sort((a, b) => b - a);
   sortedIdxs.forEach((idx) => state.messages.splice(idx, 1));
   exitMultiDeleteMode();
   saveState();
   renderMessages();
+  toast(`已删除 ${sortedIdxs.length} 条`);
 }
 
-// 简易 toast
+// 同步 loadingBubble 显示状态
+function syncLoadingBubble() {
+  $('loadingBubble').hidden = !state.aiGenerating;
+}
+
+// ============ 简易 toast
 function toast(msg) {
   const t = document.createElement('div');
   t.textContent = msg;

@@ -960,21 +960,44 @@ a {
 }
 
 .reveal-btn {
-  width: 46px;
+  width: 52px;
+  height: 46px;
   border: 1px solid var(--line);
-  background: var(--paper-2);
+  background: var(--sky);
+  color: white;
   border-radius: var(--r-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--sky-deep);
   flex-shrink: 0;
   transition: all 0.2s var(--ease-out);
 }
 
 .reveal-btn .icon-sm {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+}
+
+.reveal-btn:hover {
+  background: var(--sky-deep);
+  border-color: var(--sky-deep);
+}
+
+.reveal-btn:active {
+  transform: scale(0.94);
+}
+
+/* 显示密码按钮 - 用浅色和拉取模型区分 */
+#revealKeyBtn {
+  background: var(--paper-2);
+  color: var(--sky-deep);
+  border-color: var(--line);
+}
+
+#revealKeyBtn:hover {
+  background: var(--sky-pale);
+  color: var(--sky-deep);
+  border-color: var(--sky);
 }
 
 .reveal-btn:hover {
@@ -1608,25 +1631,27 @@ a {
 }
 
 /* ============================================
-   多选删除条 - 顶部悬浮条（在 topbar 之下，绝不遮挡底部输入）
+   多选删除条 - 仅在 multiDeleteMode=true 时显示，固定在 topbar 之下
    ============================================ */
 .multi-delete-bar {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  top: 64px; /* 紧贴 topbar 之下 */
   left: 0;
   right: 0;
   z-index: 90;
-  background: rgba(168, 200, 232, 0.95);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid var(--sky);
-  padding: 10px 16px;
+  background: var(--sky-deep);
+  color: white;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
-  box-shadow: 0 2px 8px rgba(106, 157, 201, 0.15);
+  box-shadow: 0 4px 12px rgba(106, 157, 201, 0.30);
   animation: slide-down 0.25s var(--ease-out);
-  flex-shrink: 0;
+}
+
+/* 关键：默认隐藏必须绝对生效 */
+.multi-delete-bar[hidden] {
+  display: none !important;
 }
 
 @keyframes slide-down {
@@ -1634,38 +1659,62 @@ a {
   to { transform: translateY(0); }
 }
 
+@media (max-width: 640px) {
+  .multi-delete-bar {
+    top: 56px; /* 移动端 topbar 更矮 */
+  }
+}
+
 .multi-delete-tip {
   flex: 1;
   font-size: 13px;
-  color: white;
   font-family: var(--font-ui);
   font-weight: 500;
+  color: white;
 }
 
-.multi-delete-bar .btn-secondary,
-.multi-delete-bar .btn-danger {
-  flex: 0;
-  min-width: 80px;
-  width: auto;
-  padding: 8px 14px;
+.multi-delete-cancel,
+.multi-delete-confirm {
+  border: none;
+  border-radius: var(--r-md);
+  padding: 8px 16px;
   font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+  min-width: 76px;
 }
 
-.multi-delete-bar .btn-secondary {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--sky-deep);
-  border-color: white;
+.multi-delete-cancel {
+  background: rgba(255, 255, 255, 0.20);
+  color: white;
 }
 
-.multi-delete-bar .btn-danger {
+.multi-delete-cancel:hover {
+  background: rgba(255, 255, 255, 0.30);
+}
+
+.multi-delete-confirm {
   background: white;
-  color: #B86B6B;
-  border-color: white;
+  color: var(--sky-deep);
+}
+
+.multi-delete-confirm:hover {
+  background: var(--paper-2);
+}
+
+.multi-delete-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .message.multi-select-active {
   cursor: pointer;
   transition: background 0.15s var(--ease-out);
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: var(--r-md);
 }
 
 .message.multi-selected {
@@ -1673,6 +1722,8 @@ a {
   border-radius: var(--r-md);
   position: relative;
   box-shadow: 0 0 0 2px var(--sky) inset;
+  padding: 4px 8px;
+  margin: -4px -8px;
 }
 
 .message.multi-selected::before {
