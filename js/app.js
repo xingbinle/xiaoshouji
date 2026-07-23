@@ -427,6 +427,8 @@ function buildArtifact(code) {
 }
 
 // ============ API 调用 ============
+let currentAbortController = null;
+
 async function callAPI(messages, model) {
   const systemPrompt = state.systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
@@ -439,6 +441,7 @@ async function callAPI(messages, model) {
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: state.maxTokens,
+      stream: false,
     });
   } else {
     if (!state.apiKey || !state.baseUrl) {
@@ -454,13 +457,18 @@ async function callAPI(messages, model) {
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: state.maxTokens,
+      stream: false,
     });
   }
+
+  // 创建 AbortController 让停止按钮能中断
+  currentAbortController = new AbortController();
 
   const resp = await fetch(endpoint, {
     method: 'POST',
     headers,
     body,
+    signal: currentAbortController.signal,
   });
 
   if (!resp.ok) {
@@ -550,6 +558,7 @@ async function sendMessage() {
   $('sendBtn').disabled = true;
   state.aiGenerating = true;
   syncLoadingBubble();
+  updateSendButton();
 
   try {
     const apiMessages = state.messages.map((m) => {
@@ -584,6 +593,10 @@ async function sendMessage() {
     try {
       rawReply = await callAPI(apiMessages, state.primaryModel);
     } catch (e) {
+      if (e.name === 'AbortError') {
+        // 用户主动停止，不算错误
+        return;
+      }
       console.warn('主模型失败，尝试备用:', e);
       if (state.fallbackModel) {
         rawReply = await callAPI(apiMessages, state.fallbackModel);
@@ -591,6 +604,9 @@ async function sendMessage() {
         throw e;
       }
     }
+
+    // 如果中途被停止，直接返回
+    if (!rawReply) return;
 
     // 解析 AI 回复（支持 JSON 多消息格式）
     const parsedMessages = parseAIResponse(rawReply);
@@ -600,15 +616,44 @@ async function sendMessage() {
     saveState();
     renderMessages();
   } catch (e) {
-    state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
-    saveState();
-    renderMessages();
+    if (e.name !== 'AbortError') {
+      state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
+      saveState();
+      renderMessages();
+    }
   } finally {
     state.aiGenerating = false;
+    currentAbortController = null;
     $('sendBtn').disabled = false;
+    updateSendButton();
     syncLoadingBubble();
-    // 重新渲染以清除头像 loading class
     renderMessages();
+  }
+}
+
+// 停止 AI 生成
+function stopGeneration() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    toast('已停止生成');
+  }
+}
+
+// 更新发送按钮（生成中显示停止）
+function updateSendButton() {
+  const btn = $('sendBtn');
+  const sendIcon = btn.querySelector('.send-icon');
+  const stopIcon = btn.querySelector('.stop-icon');
+  if (state.aiGenerating) {
+    btn.classList.add('is-stop');
+    btn.setAttribute('aria-label', '停止生成');
+    sendIcon.hidden = true;
+    stopIcon.hidden = false;
+  } else {
+    btn.classList.remove('is-stop');
+    btn.setAttribute('aria-label', '发送');
+    sendIcon.hidden = false;
+    stopIcon.hidden = true;
   }
 }
 
@@ -906,11 +951,21 @@ function confirmMultiDelete() {
   toast(`已删除 ${sortedIdxs.length} 条`);
 }
 
-// 同步 loadingBubble 显示状态
+// 同步 loadingBubble 显示状态（终极防御：操作属性 + inline style + class）
 function syncLoadingBubble() {
   const el = $('loadingBubble');
-  el.hidden = !state.aiGenerating;
-  el.style.display = state.aiGenerating ? 'flex' : 'none';
+  if (!el) return;
+  if (state.aiGenerating) {
+    el.hidden = false;
+    el.removeAttribute('hidden');
+    el.style.display = 'flex';
+    el.classList.add('active');
+  } else {
+    el.hidden = true;
+    el.setAttribute('hidden', '');
+    el.style.display = 'none';
+    el.classList.remove('active');
+  }
 }
 
 // ============ 简易 toast
@@ -979,9 +1034,13 @@ function init() {
     if (useEl) useEl.setAttribute('href', keyVisible ? '#i-eye-off' : '#i-eye');
   });
 
-  // 发送（🛩️）—— 触发 AI 回复
+  // 发送/停止按钮 —— 生成中点击停止，否则发送
   $('sendBtn').addEventListener('click', () => {
-    sendMessage();
+    if (state.aiGenerating) {
+      stopGeneration();
+    } else {
+      sendMessage();
+    }
   });
 
   // Enter = 把当前行加到聊天列表（不触发 AI）
