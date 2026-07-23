@@ -991,14 +991,56 @@ function stopGeneration() {
   }
 }
 
-// 解析 AI 回复（支持 JSON 多消息格式 + 内联工具调用）
+// ============ JSON 修复：处理 AI 输出中未转义的换行符等 ============
+function repairJSON(jsonStr) {
+  // 遍历字符串，在字符串值内部将未转义的控制字符替换为转义序列
+  let result = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+      result += ch;
+      continue;
+    }
+
+    if (inString) {
+      // 修复未转义的控制字符（AI 常见错误：content 里直接换行）
+      if (ch === '\n') result += '\\n';
+      else if (ch === '\r') result += '\\r';
+      else if (ch === '\t') result += '\\t';
+      else if (ch.charCodeAt(0) < 0x20) result += '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
+      else result += ch;
+    } else {
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
+// 解析 AI 回复（支持 JSON 多消息格式 + 内联工具调用 + JSON容错修复）
 function parseAIResponse(raw) {
   if (!raw || typeof raw !== 'string') {
     return [{ type: 'text', text: String(raw || '') }];
   }
 
   // 1. 先尝试从原始文本中提取最外层的 JSON 对象（贪婪匹配到最后一个 }）
-  //    用 [\s\S]* 而非 [\s\S]*? 避免只匹配到一半
   const startIdx = raw.indexOf('{');
   if (startIdx !== -1) {
     // 从第一个 { 开始，找到最后一个匹配的 }
@@ -1016,60 +1058,70 @@ function parseAIResponse(raw) {
     }
     if (endIdx !== -1) {
       const jsonStr = raw.slice(startIdx, endIdx + 1);
-      try {
-        const parsed = JSON.parse(jsonStr);
-        if (parsed.messages && Array.isArray(parsed.messages)) {
-          const result = [];
-          for (const m of parsed.messages) {
-            // ★ 内联工具：transfer（AI 发红包）
-            if (m.type === 'transfer') {
-              const amount = parseFloat(m.amount) || 0;
-              const note = String(m.note || m.content || '').slice(0, 30);
-              if (amount >= 0.01 && canTransfer('ai', amount).ok) {
-                addBalance('ai', -amount);
-                const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+
+      // 尝试多种解析策略
+      let parsed = null;
+      const strategies = [
+        () => JSON.parse(jsonStr),                        // 1) 原始
+        () => JSON.parse(repairJSON(jsonStr)),            // 2) 修复未转义控制字符
+      ];
+
+      for (const strat of strategies) {
+        try {
+          parsed = strat();
+          break;
+        } catch (e) { /* 继续下一个策略 */ }
+      }
+
+      if (parsed && parsed.messages && Array.isArray(parsed.messages)) {
+        const result = [];
+        for (const m of parsed.messages) {
+          // ★ 内联工具：transfer（AI 发红包）
+          if (m.type === 'transfer') {
+            const amount = parseFloat(m.amount) || 0;
+            const note = String(m.note || m.content || '').slice(0, 30);
+            if (amount >= 0.01 && canTransfer('ai', amount).ok) {
+              addBalance('ai', -amount);
+              const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+              state.messages.push({
+                role: 'ai', type: 'redpacket', amount, note: note || '一点心意～',
+                redpacketId: rpId, status: 'pending', recipient: null, createdAt: Date.now(),
+              });
+              state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
+              saveWallet(); saveState();
+            }
+            continue;  // 工具消息不显示
+          }
+          // ★ 内联工具：claim_redpacket（AI 领红包）
+          if (m.type === 'claim_redpacket') {
+            const rpId = String(m.redpacket_id || m.content || '').trim();
+            if (rpId) {
+              const target = state.messages.find(x =>
+                x.redpacketId === rpId && x.type === 'redpacket' && x.status === 'pending'
+              );
+              if (target && (!target.createdAt || Date.now() - target.createdAt <= 24 * 60 * 60 * 1000)) {
+                target.status = 'received'; target.recipient = 'ai'; target.receivedAt = Date.now();
+                addBalance('ai', target.amount || 0);
                 state.messages.push({
-                  role: 'ai', type: 'redpacket', amount, note: note || '一点心意～',
-                  redpacketId: rpId, status: 'pending', recipient: null, createdAt: Date.now(),
+                  role: 'user', type: 'system-event',
+                  text: `${state.aiName}领取了月月的红包（¥${(target.amount || 0).toFixed(2)}，备注"${target.note || ''}"）`,
                 });
-                state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
+                state.transferLog.push({ type: 'claim', from: 'user', amount: target.amount, redpacketId: rpId, time: Date.now() });
                 saveWallet(); saveState();
               }
-              continue;  // 工具消息不显示
             }
-            // ★ 内联工具：claim_redpacket（AI 领红包）
-            if (m.type === 'claim_redpacket') {
-              const rpId = String(m.redpacket_id || m.content || '').trim();
-              if (rpId) {
-                const target = state.messages.find(x =>
-                  x.redpacketId === rpId && x.type === 'redpacket' && x.status === 'pending'
-                );
-                if (target && (!target.createdAt || Date.now() - target.createdAt <= 24 * 60 * 60 * 1000)) {
-                  target.status = 'received'; target.recipient = 'ai'; target.receivedAt = Date.now();
-                  addBalance('ai', target.amount || 0);
-                  state.messages.push({
-                    role: 'user', type: 'system-event',
-                    text: `${state.aiName}领取了月月的红包（¥${(target.amount || 0).toFixed(2)}，备注"${target.note || ''}"）`,
-                  });
-                  state.transferLog.push({ type: 'claim', from: 'user', amount: target.amount, redpacketId: rpId, time: Date.now() });
-                  saveWallet(); saveState();
-                }
-              }
-              continue;  // 工具消息不显示
-            }
-            // 普通消息
-            result.push({
-              type: m.type || 'text',
-              text: m.content || '',
-              duration: m.duration,
-              sticker: m.sticker,
-              imageUrl: m.imageUrl,
-            });
+            continue;  // 工具消息不显示
           }
-          return result.length ? result : [{ type: 'text', text: '（空回复）' }];
+          // 普通消息
+          result.push({
+            type: m.type || 'text',
+            text: m.content || '',
+            duration: m.duration,
+            sticker: m.sticker,
+            imageUrl: m.imageUrl,
+          });
         }
-      } catch (e) {
-        // 解析失败，fallback
+        return result.length ? result : [{ type: 'text', text: '（空回复）' }];
       }
     }
   }
