@@ -402,6 +402,7 @@ async function sendMessage(text, imageDataUrl = null) {
     renderMessages();
   } catch (e) {
     state.messages.push({ role: 'ai', text: `出错了：${e.message}` });
+    // 错误消息也存为 ai，渲染和后续发送时会被自动转 assistant
     saveState();
     renderMessages();
   } finally {
