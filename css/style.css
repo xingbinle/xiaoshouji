@@ -548,6 +548,8 @@ a {
   border-top: 1px solid var(--line-soft);
   flex-shrink: 0;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  position: relative;
+  z-index: 95;
 }
 
 .send-btn {
@@ -1553,7 +1555,7 @@ a {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 90;
+  z-index: 80;
   background: var(--paper);
   border-top: 1px solid var(--line);
   padding: 12px 16px;
@@ -1562,6 +1564,7 @@ a {
   gap: var(--gap-sm);
   box-shadow: 0 -4px 12px rgba(42, 34, 32, 0.08);
   animation: voice-up 0.3s var(--ease-out);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
 .multi-delete-tip {
