@@ -344,6 +344,27 @@ a {
   border-color: var(--gold-soft);
 }
 
+/* AI 头像 - 加载中时转圈 */
+.avatar.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.avatar.loading::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid transparent;
+  border-top-color: var(--sky-deep);
+  border-right-color: var(--sky);
+  border-radius: 50%;
+  animation: avatar-spin 0.9s linear infinite;
+}
+
+@keyframes avatar-spin {
+  to { transform: rotate(360deg); }
+}
+
 .bubble {
   max-width: 78%;
   padding: 10px 14px;
@@ -1587,63 +1608,90 @@ a {
 }
 
 /* ============================================
-   多选删除条
+   多选删除条 - 顶部悬浮条（在 topbar 之下，绝不遮挡底部输入）
    ============================================ */
 .multi-delete-bar {
-  position: fixed;
-  bottom: 0;
+  position: sticky;
+  top: 0;
   left: 0;
   right: 0;
-  z-index: 80;
-  background: var(--paper);
-  border-top: 1px solid var(--line);
-  padding: 12px 16px;
+  z-index: 90;
+  background: rgba(168, 200, 232, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--sky);
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
-  box-shadow: 0 -4px 12px rgba(42, 34, 32, 0.08);
-  animation: voice-up 0.3s var(--ease-out);
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 2px 8px rgba(106, 157, 201, 0.15);
+  animation: slide-down 0.25s var(--ease-out);
+  flex-shrink: 0;
+}
+
+@keyframes slide-down {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
 }
 
 .multi-delete-tip {
   flex: 1;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: white;
   font-family: var(--font-ui);
+  font-weight: 500;
 }
 
 .multi-delete-bar .btn-secondary,
 .multi-delete-bar .btn-danger {
   flex: 0;
-  min-width: 90px;
+  min-width: 80px;
   width: auto;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.multi-delete-bar .btn-secondary {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--sky-deep);
+  border-color: white;
+}
+
+.multi-delete-bar .btn-danger {
+  background: white;
+  color: #B86B6B;
+  border-color: white;
 }
 
 .message.multi-select-active {
   cursor: pointer;
+  transition: background 0.15s var(--ease-out);
 }
 
 .message.multi-selected {
-  background: rgba(168, 200, 232, 0.25);
+  background: rgba(168, 200, 232, 0.30);
   border-radius: var(--r-md);
   position: relative;
+  box-shadow: 0 0 0 2px var(--sky) inset;
 }
 
 .message.multi-selected::before {
   content: '✓';
   position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 20px;
-  height: 20px;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
   background: var(--sky-deep);
   color: white;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-ui);
   z-index: 5;
+  box-shadow: 0 2px 4px rgba(106, 157, 201, 0.4);
 }

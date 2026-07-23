@@ -3,7 +3,7 @@
    作用：让 PWA 离线也能打开聊天界面
    ============================================ */
 
-const CACHE_NAME = 'xiaoshouji-v05';
+const CACHE_NAME = 'xiaoshouji-v06';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -30,8 +30,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // 只处理 GET 请求，其它一律放行
   if (event.request.method !== 'GET') return;
-  // 不缓存任何东西，所有请求直接走网络
-  // 这样每次都是最新代码
-  event.respondWith(fetch(event.request));
+
+  // 用 try/catch 包住 respondWith，任何网络错误都能优雅降级
+  // 避免出现 "FetchEvent.respondWith received an error" 崩溃页面
+  event.respondWith(
+    fetch(event.request).catch((err) => {
+      console.warn('[SW] fetch failed, returning fallback:', err);
+      // 降级：返回 503 响应，浏览器继续走网络
+      return new Response('', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      });
+    })
+  );
 });
