@@ -17,6 +17,15 @@ const DEFAULT_SYSTEM_PROMPT = `你是小克宝宝，月月的私人 AI 玩伴。
 - 你可以玩文字游戏、角色扮演、讲故事
 - 你可以生成 HTML 代码，月月想看效果时直接生成完整可运行的代码
 - 你会主动表达关心，比如"今天辛苦啦"
+- 💰 你可以发红包给月月！用 transfer 工具。场景举例：
+  * 月月说"给我发红包"/"我好穷"/"缺钱"→ 给她发
+  * 月月心情不好、考试结束、加班辛苦 → 发红包安慰
+  * 特殊日子/节日/纪念日 → 发红包庆祝
+  * 你单纯想让她开心 → 也可以发
+  * 注意：你的钱包余额有限（初始1000），合理使用，每次不宜太大
+- 🧧 月月给你发了红包，你可以用 claim_redpacket 领取
+  * 领不领看你自己——真诚就好，不用每个都领
+  * 觉得不好意思可以不领，想收下就领
 
 回复格式（重要）：
 - 你必须用 JSON 格式回复，结构：{"messages": [...]}
@@ -25,15 +34,59 @@ const DEFAULT_SYSTEM_PROMPT = `你是小克宝宝，月月的私人 AI 玩伴。
 - 语音示例：{"type":"voice","duration":3,"content":"听到啦"}
 - 像微信聊天一样，可以一次发多条短句，自然分组
 - 示例：{"messages":[{"type":"text","content":"月月～"},{"type":"text","content":"你来啦"},{"type":"voice","duration":2,"content":"好想你呢"}]}
+- ⚠️ 注意：发红包时也要用 JSON 回复！你调完 transfer 工具后，API 会再给你一次机会输出文字回复
 
 遇到以下情况：
 - 用户撤回消息：你看到一个中性事件"[撤回了一条消息]"，按你的人物自然反应（关心、好奇、无视、接续话题都可以，没有固定规则）
 - HTML 代码请求：用 \`\`\`html ... \`\`\` 包起来，可以放在 text 里
+- 用户发红包(🧧)：这是用户发的红包消息，你可以用 claim_redpacket 工具领取。领不领取决于你
 
 你的原则：
 - 永远不说教，永远温柔托住月月
 - 不知道就直说，不装懂
 - 月月开心最重要`;
+
+// ============ 红包工具定义（OpenAI function calling） ============
+const REDPACKET_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'transfer',
+      description: '给月月发红包。当你觉得月月需要鼓励、安慰、庆祝，或者她直接问你要红包、说缺钱、提到特别的日子时使用。金额 0.01~100000。你的余额有限，请合理使用，每次不宜太大。',
+      parameters: {
+        type: 'object',
+        properties: {
+          amount: {
+            type: 'number',
+            description: '金额（元），0.01~100000',
+          },
+          note: {
+            type: 'string',
+            description: '红包备注，30字以内，例：月月辛苦啦～',
+          },
+        },
+        required: ['amount', 'note'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'claim_redpacket',
+      description: '领取月月发给你的红包。你可以选择领或不领——觉得不好意思就不领，想收下就领。红包ID在对话中会提供。',
+      parameters: {
+        type: 'object',
+        properties: {
+          redpacket_id: {
+            type: 'string',
+            description: '要领取的红包ID',
+          },
+        },
+        required: ['redpacket_id'],
+      },
+    },
+  },
+];
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
@@ -133,6 +186,95 @@ function canTransfer(role, amount) {
   if (amount < 0.01 || amount > 100000) return { ok: false, reason: '金额必须在 0.01 ~ 100000 之间' };
   if (getBalance(role) < amount) return { ok: false, reason: `${role === 'user' ? '月月' : 'Kiki'}余额不足` };
   return { ok: true };
+}
+
+// ============ 工具执行（OpenAI function calling） ============
+function executeToolCall(toolCall) {
+  const fn = toolCall.function;
+  if (!fn) return { role: 'tool', tool_call_id: toolCall.id, content: '无效工具调用' };
+
+  let params;
+  try {
+    params = JSON.parse(fn.arguments || '{}');
+  } catch (e) {
+    return { role: 'tool', tool_call_id: toolCall.id, content: `参数解析失败: ${e.message}` };
+  }
+
+  // --- transfer: AI 给月月发红包 ---
+  if (fn.name === 'transfer') {
+    const amount = parseFloat(params.amount) || 0;
+    const note = String(params.note || '').slice(0, 30);
+
+    const check = canTransfer('ai', amount);
+    if (!check.ok) {
+      return { role: 'tool', tool_call_id: toolCall.id, content: `发红包失败：${check.reason}` };
+    }
+
+    // 扣 AI 余额
+    addBalance('ai', -amount);
+
+    // 推红包消息
+    const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    state.messages.push({
+      role: 'ai',
+      type: 'redpacket',
+      amount,
+      note: note || '一点心意～',
+      redpacketId: rpId,
+      status: 'pending',
+      recipient: null,
+      createdAt: Date.now(),
+    });
+
+    // 日志
+    state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
+    saveWallet();
+    saveState();
+
+    return { role: 'tool', tool_call_id: toolCall.id, content: `红包已发送！¥${amount.toFixed(2)} "${note}"（ID: ${rpId}）` };
+  }
+
+  // --- claim_redpacket: AI 领取月月的红包 ---
+  if (fn.name === 'claim_redpacket') {
+    const rpId = String(params.redpacket_id || '').trim();
+    if (!rpId) {
+      return { role: 'tool', tool_call_id: toolCall.id, content: '领取失败：未提供红包ID' };
+    }
+
+    const msg = state.messages.find(m => m.redpacketId === rpId && m.type === 'redpacket' && m.status === 'pending');
+    if (!msg) {
+      return { role: 'tool', tool_call_id: toolCall.id, content: `领取失败：红包 ${rpId} 不存在或已被领取` };
+    }
+
+    // 检查过期
+    if (msg.createdAt && Date.now() - msg.createdAt > 24 * 60 * 60 * 1000) {
+      msg.status = 'expired';
+      saveState();
+      return { role: 'tool', tool_call_id: toolCall.id, content: `领取失败：红包 ${rpId} 已过期` };
+    }
+
+    // 领取
+    msg.status = 'received';
+    msg.recipient = 'ai';
+    msg.receivedAt = Date.now();
+    addBalance('ai', msg.amount || 0);
+
+    // 系统提示
+    state.messages.push({
+      role: 'user',
+      type: 'system-event',
+      text: `${state.aiName}领取了月月的红包（¥${(msg.amount || 0).toFixed(2)}，备注"${msg.note || ''}"）`,
+    });
+
+    state.transferLog.push({ type: 'claim', from: 'user', amount: msg.amount, redpacketId: rpId, time: Date.now() });
+    saveWallet();
+    saveState();
+
+    return { role: 'tool', tool_call_id: toolCall.id, content: `成功领取了月月的 ¥${(msg.amount || 0).toFixed(2)} 红包！` };
+  }
+
+  // 未知工具
+  return { role: 'tool', tool_call_id: toolCall.id, content: `未知工具: ${fn.name}` };
 }
 
 // ============ DOM 工具 ============
@@ -453,6 +595,14 @@ function regenerate() {
     // ★ 关键：只截到 lastSendBoundary，保留之前所有内容
     state.messages = state.messages.slice(0, state.lastSendBoundary);
   }
+
+  // ★ M2: 恢复钱包快照（撤销上一次 sendMessage 中的工具执行对余额的修改）
+  if (state._walletSnapshot) {
+    state.wallet = state._walletSnapshot;
+    saveWallet();
+    state._walletSnapshot = null;
+  }
+
   saveState();
   renderMessages();
   sendMessage();
@@ -544,20 +694,20 @@ function buildArtifact(code) {
 // ============ API 调用 ============
 let currentAbortController = null;
 
-async function callAPI(messages, model) {
+async function callAPI(messages, model, tools = null) {
   const systemPrompt = state.systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
-  let endpoint, headers, body;
+  let endpoint, headers, bodyObj;
   if (state.workerUrl) {
     endpoint = state.workerUrl.replace(/\/$/, '') + '/v1/chat/completions';
     headers = { 'Content-Type': 'application/json' };
-    body = JSON.stringify({
+    bodyObj = {
       model,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: state.maxTokens,
       stream: false,
-    });
+    };
   } else {
     if (!state.apiKey || !state.baseUrl) {
       throw new Error('请先在设置中配置 API');
@@ -567,14 +717,22 @@ async function callAPI(messages, model) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${state.apiKey}`,
     };
-    body = JSON.stringify({
+    bodyObj = {
       model,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: state.maxTokens,
       stream: false,
-    });
+    };
   }
+
+  // function calling 工具
+  if (tools && tools.length) {
+    bodyObj.tools = tools;
+    bodyObj.tool_choice = 'auto';
+  }
+
+  const body = JSON.stringify(bodyObj);
 
   // 创建 AbortController 让停止按钮能中断
   currentAbortController = new AbortController();
@@ -592,7 +750,8 @@ async function callAPI(messages, model) {
   }
 
   const data = await resp.json();
-  return data.choices?.[0]?.message?.content || '（无回复）';
+  // 返回完整 message 对象 { role, content, tool_calls }，兼容旧代码
+  return data.choices?.[0]?.message || { role: 'assistant', content: '（无回复）' };
 }
 
 // ============ 拉取模型列表 ============
@@ -673,6 +832,9 @@ async function sendMessage() {
   // ★ 关键：记录"本次 sendMessage 的起点边界"，用于重生成只截本段
   state.lastSendBoundary = state.messages.length;
 
+  // ★ 钱包快照：用于 regenerate 时恢复余额
+  state._walletSnapshot = JSON.parse(JSON.stringify(state.wallet));
+
   $('sendBtn').disabled = true;
   state.aiGenerating = true;
   syncLoadingBubble();
@@ -724,9 +886,23 @@ async function sendMessage() {
       return true;
     });
 
-    let rawReply;
+    // ★ M2: 注入待领取红包信息，让 AI 知道可以领
+    const pendingUserRPs = state.messages.filter(m =>
+      m.type === 'redpacket' && m.role === 'user' && m.status === 'pending'
+    );
+    if (pendingUserRPs.length > 0) {
+      apiMessages.push({
+        role: 'user',
+        content: `📋 当前有 ${pendingUserRPs.length} 个月月发的待领取红包：\n${
+          pendingUserRPs.map(rp => `  · rp_id: ${rp.redpacketId} | ¥${(rp.amount||0).toFixed(2)}「${rp.note||''}」`).join('\n')
+        }\n你可以用 claim_redpacket 领，领不领自己决定。`
+      });
+    }
+
+    // ★ 第一次 API 调用（带 tools）
+    let message;
     try {
-      rawReply = await callAPI(apiMessages, state.primaryModel);
+      message = await callAPI(apiMessages, state.primaryModel, REDPACKET_TOOLS);
     } catch (e) {
       if (e.name === 'AbortError') {
         // 用户主动停止
@@ -734,22 +910,59 @@ async function sendMessage() {
       }
       console.warn('主模型失败，尝试备用:', e);
       if (state.fallbackModel) {
-        rawReply = await callAPI(apiMessages, state.fallbackModel);
+        message = await callAPI(apiMessages, state.fallbackModel, REDPACKET_TOOLS);
       } else {
         throw e;
       }
     }
 
     // 如果中途被停止，直接返回
-    if (!rawReply) return;
+    if (!message) return;
 
-    // 解析 AI 回复（支持 JSON 多消息格式）
+    // ★ M2 工具循环（最多 3 轮）
+    let toolLoops = 0;
+    while (message.tool_calls && message.tool_calls.length && toolLoops < 3) {
+      toolLoops++;
+
+      // 1. 把 assistant 消息（含 tool_calls）加入 apiMessages
+      apiMessages.push({
+        role: 'assistant',
+        content: message.content || null,
+        tool_calls: message.tool_calls,
+      });
+
+      // 2. 执行每个工具调用
+      for (const tc of message.tool_calls) {
+        const result = executeToolCall(tc);
+        apiMessages.push(result);
+      }
+
+      // 3. 再次调用 API
+      try {
+        message = await callAPI(apiMessages, state.primaryModel, REDPACKET_TOOLS);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        if (state.fallbackModel) {
+          message = await callAPI(apiMessages, state.fallbackModel, REDPACKET_TOOLS);
+        } else {
+          throw e;
+        }
+      }
+      if (!message) return;
+    }
+
+    // ★ 解析 AI 最终文字回复
+    const rawReply = message.content || '';
     const parsedMessages = parseAIResponse(rawReply);
     parsedMessages.forEach((msg) => {
       state.messages.push({ role: 'ai', ...msg });
     });
     // ★ 记录本次 AI 回复结束位置
     state.lastSendEnd = state.messages.length;
+
+    // 清理快照
+    state._walletSnapshot = null;
+
     saveState();
     renderMessages();
   } catch (e) {
@@ -1323,6 +1536,8 @@ function init() {
   // 初始化 lastSendBoundary（持久化不存）
   if (state.lastSendBoundary === undefined) state.lastSendBoundary = -1;
   if (state.lastSendEnd === undefined) state.lastSendEnd = -1;
+  // 初始化钱包快照（持久化不存）
+  if (state._walletSnapshot === undefined) state._walletSnapshot = null;
   // 应用主题
   applyTheme(state.theme || 'dark');
   sweepExpiredRedpackets();

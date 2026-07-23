@@ -3,7 +3,7 @@
    作用：让 PWA 离线也能打开聊天界面
    ============================================ */
 
-const CACHE_NAME = 'xiaoshouji-v12';
+const CACHE_NAME = 'xiaoshouji-v13';
 const CORE_ASSETS = [
   './',
   './index.html',
