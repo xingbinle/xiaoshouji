@@ -670,28 +670,6 @@ async function sendMessage() {
     if (m.pending) m.pending = false;
   });
 
-  // AI 自动领取用户刚发的红包
-  const now = Date.now();
-  state.messages.forEach((m) => {
-    if (m.type === 'redpacket' && m.role === 'user' && m.status === 'pending' && !m.autoClaimed) {
-      if (!m.createdAt || now - m.createdAt < 24 * 60 * 60 * 1000) {
-        m.status = 'received';
-        m.recipient = 'ai';
-        m.receivedAt = now;
-        m.autoClaimed = true;
-        addBalance('ai', m.amount || 0);
-        state.transferLog.push({
-          type: 'claim', from: 'user', amount: m.amount,
-          redpacketId: m.redpacketId, time: now,
-        });
-        state.messages.push({
-          role: 'user', type: 'system-event',
-          text: `${state.aiName}领取了月月的红包（¥${(m.amount||0).toFixed(2)}，备注"${m.note||''}"）`,
-        });
-      }
-    }
-  });
-
   // ★ 关键：记录"本次 sendMessage 的起点边界"，用于重生成只截本段
   state.lastSendBoundary = state.messages.length;
 
@@ -721,19 +699,27 @@ async function sendMessage() {
         return { role, content: '[撤回了一条消息]' };
       }
       if (m.type === 'redpacket') {
+        // M1: 转成纯文本让AI自然回应用户发红包这个动作，不暴露内部协议
         const sender = m.role === 'user' ? '月月' : state.aiName;
-        const statusText = m.status === 'received'
-          ? `${m.recipient === 'user' ? '月月' : state.aiName}已领取`
-          : m.status === 'expired' ? '已过期' : '待领取';
-        return { role, content: `[红包] ${sender}发了一个 ¥${(m.amount||0).toFixed(2)} 红包"${m.note||''}"（${statusText}）` };
+        if (m.status === 'received') {
+          const recipient = m.recipient === 'user' ? '月月' : state.aiName;
+          return { role, content: `🧧 ${recipient}领取了${sender}的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）` };
+        }
+        if (m.status === 'expired') {
+          return { role, content: `🧧 ${sender}发的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）已过期` };
+        }
+        // pending: 红包还没人领
+        return { role, content: `🧧 ${sender}发了一个红包：¥${(m.amount||0).toFixed(2)}「${m.note||''}」` };
       }
       if (m.type === 'system-event') {
-        return { role: 'user', content: `[系统提示] ${m.text || ''}` };
+        // system-event 是UI提示，不发给API；返回null让下面的filter过滤掉
+        return null;
       }
       let content = m.text || '';
       if (m.edited) content += ' (已编辑)';
       return { role, content };
     }).filter((m) => {
+      if (!m) return false;  // system-event等不发给API的消息
       if (m.role === 'user' && (m.content === '' || (Array.isArray(m.content) && !m.content.length))) return false;
       return true;
     });
