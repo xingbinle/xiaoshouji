@@ -15,16 +15,15 @@ const CORE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
-  );
+  // 不再预缓存任何资源，避免缓存过期的代码
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  // 删除所有旧缓存
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -32,17 +31,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((resp) => {
-        // 不缓存 API 请求
-        if (event.request.url.includes('/v1/') || event.request.url.includes('/chat/')) {
-          return resp;
-        }
-        const clone = resp.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return resp;
-      }).catch(() => cached);
-    })
-  );
+  // 不缓存任何东西，所有请求直接走网络
+  // 这样每次都是最新代码
+  event.respondWith(fetch(event.request));
 });
