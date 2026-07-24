@@ -98,6 +98,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
+const APP_VERSION = 'v18'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -114,11 +115,14 @@ let state = {
   modelList: [],
   wallet: { user: 1000, ai: 1000, initialized: true },
   transferLog: [],
-  // ===== 第一期：预设 / AI角色 / 用户设定 / 滚动总结 =====
+  // ===== 第一期：预设分组 / 正则分区 / AI角色 / 用户设定 / 滚动总结 =====
   userProfile: { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' },
   aiProfile: { persona: '' },
-  preset: { name: '', prompts: [] },
-  regexRules: [],
+  presetGroups: [],
+  regexGroups: [{ id: 'g_default', name: '默认分区', enabled: true, rules: [] }],
+  contextLength: 30,
+  frequencyPenalty: 0,
+  presencePenalty: 0,
   summary: '',
   memories: [],
   summaryBoundary: 0,
@@ -160,8 +164,11 @@ function saveState() {
     theme: state.theme,
     userProfile: state.userProfile,
     aiProfile: state.aiProfile,
-    preset: state.preset,
-    regexRules: state.regexRules,
+    presetGroups: state.presetGroups,
+    regexGroups: state.regexGroups,
+    contextLength: state.contextLength,
+    frequencyPenalty: state.frequencyPenalty,
+    presencePenalty: state.presencePenalty,
     summary: state.summary,
     memories: (state.memories || []).slice(-50),
     summaryBoundary: state.summaryBoundary,
@@ -179,8 +186,23 @@ function loadState() {
     // 第一期字段兜底（旧存档没有这些 key）
     state.userProfile = state.userProfile || { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
     state.aiProfile = state.aiProfile || { persona: '' };
-    state.preset = state.preset || { name: '', prompts: [] };
-    state.regexRules = state.regexRules || [];
+    // 旧版单预设 → 分组结构迁移
+    if (!state.presetGroups) {
+      state.presetGroups = [];
+      if (state.preset && state.preset.prompts && state.preset.prompts.length) {
+        state.presetGroups.push({ id: 'g_migrated', name: state.preset.name || '导入的预设', type: 'preset', enabled: true, items: state.preset.prompts });
+      }
+    }
+    // 旧版平铺正则 → 默认分区迁移
+    if (!state.regexGroups) {
+      state.regexGroups = [{ id: 'g_default', name: '默认分区', enabled: true, rules: state.regexRules || [] }];
+    }
+    if (!state.regexGroups.length) {
+      state.regexGroups.push({ id: 'g_default', name: '默认分区', enabled: true, rules: [] });
+    }
+    state.contextLength = state.contextLength || 30;
+    state.frequencyPenalty = state.frequencyPenalty || 0;
+    state.presencePenalty = state.presencePenalty || 0;
     state.summary = state.summary || '';
     state.memories = state.memories || [];
     state.summaryBoundary = state.summaryBoundary || 0;
@@ -747,6 +769,8 @@ async function callAPI(messages, model, tools = null, opts = {}) {
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: opts.maxTokens || state.maxTokens,
+      frequency_penalty: state.frequencyPenalty || 0,
+      presence_penalty: state.presencePenalty || 0,
       stream: false,
     };
   } else {
@@ -763,6 +787,8 @@ async function callAPI(messages, model, tools = null, opts = {}) {
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
       max_tokens: opts.maxTokens || state.maxTokens,
+      frequency_penalty: state.frequencyPenalty || 0,
+      presence_penalty: state.presencePenalty || 0,
       stream: false,
     };
   }
@@ -965,10 +991,16 @@ function buildSystemPrompt() {
     .replace(/\{\{\s*char\s*\}\}/gi, state.aiName);
   const parts = [];
 
-  // 1. 预设（酒馆 JSON 导入，勾选的条目）
-  if (state.preset && state.preset.prompts && state.preset.prompts.length) {
-    const enabled = state.preset.prompts.filter(p => p.enabled !== false && p.content && p.content.trim());
-    if (enabled.length) parts.push(enabled.map(p => macro(p.content.trim())).join('\n\n'));
+  // 1. 预设分组（勾选的分组 + 勾选的条目；预设/世界书统一进 system prompt）
+  if (state.presetGroups && state.presetGroups.length) {
+    const texts = [];
+    for (const g of state.presetGroups) {
+      if (!g || g.enabled === false) continue;
+      for (const it of (g.items || [])) {
+        if (it.enabled !== false && it.content && it.content.trim()) texts.push(macro(it.content.trim()));
+      }
+    }
+    if (texts.length) parts.push(texts.join('\n\n'));
   }
 
   // 2. AI 角色设定（默认人设 / 高级自定义 + 人设补充）
@@ -1002,15 +1034,18 @@ function buildSystemPrompt() {
   return parts.join('\n\n');
 }
 
-// ============ 正则替换（作用于 AI 输出，第一期先只改文本展示） ============
+// ============ 正则替换（作用于 AI 输出，按分区逐条应用） ============
 function applyRegexRules(text) {
-  if (!text || !state.regexRules || !state.regexRules.length) return text;
+  if (!text || !state.regexGroups || !state.regexGroups.length) return text;
   let out = text;
-  for (const r of state.regexRules) {
-    if (!r || r.enabled === false || !r.pattern) continue;
-    try {
-      out = out.replace(new RegExp(r.pattern, 'g'), r.replacement ?? '');
-    } catch (e) { /* 规则写错就跳过，不影响聊天 */ }
+  for (const g of state.regexGroups) {
+    if (!g || g.enabled === false) continue;
+    for (const r of (g.rules || [])) {
+      if (!r || r.enabled === false || !r.pattern) continue;
+      try {
+        out = out.replace(new RegExp(r.pattern, 'g'), r.replacement ?? '');
+      } catch (e) { /* 规则写错就跳过，不影响聊天 */ }
+    }
   }
   return out;
 }
@@ -1102,8 +1137,13 @@ async function sendMessage() {
   syncLoadingBubble();
 
   try {
-    // ★ 滚动总结：总结边界之前的消息已压缩进 system prompt，只发边界之后的
-    const startIdx = Math.min(state.summaryBoundary || 0, state.messages.length);
+    // ★ 滚动总结：总结边界之前的消息已压缩进 system prompt，只发边界之后的；
+    //   同时受"上下文长度"限制，最多发最近 N 条
+    const N = state.contextLength || 30;
+    const startIdx = Math.max(
+      Math.min(state.summaryBoundary || 0, state.messages.length),
+      state.messages.length - N
+    );
     let apiMessages = serializeMessagesForAPI(state.messages.slice(startIdx));
     if (!apiMessages.length && state.messages.length) {
       // 兜底：边界外没东西了（比如重生成撞边界），至少带最近几条
@@ -1563,10 +1603,11 @@ function openSettings() {
   $('apiKey').value = state.apiKey;
   $('primaryModel').value = state.primaryModel;
   $('fallbackModel').value = state.fallbackModel;
-  $('aiName').value = state.aiName;
-  $('systemPrompt').value = state.systemPrompt;
   $('temperature').value = state.temperature;
   $('maxTokens').value = state.maxTokens;
+  $('contextLength').value = state.contextLength || 30;
+  $('frequencyPenalty').value = state.frequencyPenalty || 0;
+  $('presencePenalty').value = state.presencePenalty || 0;
   const themeSelect = $('themeSelect');
   if (themeSelect) themeSelect.value = state.theme || 'dark';
   $('settingsPanel').hidden = false;
@@ -1584,10 +1625,11 @@ function saveSettings() {
   state.apiKey = $('apiKey').value.trim();
   state.primaryModel = $('primaryModel').value.trim();
   state.fallbackModel = $('fallbackModel').value.trim();
-  state.aiName = $('aiName').value.trim() || '小克宝宝';
-  state.systemPrompt = $('systemPrompt').value;
   state.temperature = parseFloat($('temperature').value) || 0.8;
   state.maxTokens = parseInt($('maxTokens').value) || 4000;
+  state.contextLength = parseInt($('contextLength').value) || 30;
+  state.frequencyPenalty = parseFloat($('frequencyPenalty').value) || 0;
+  state.presencePenalty = parseFloat($('presencePenalty').value) || 0;
   const themeSelect = $('themeSelect');
   if (themeSelect) applyTheme(themeSelect.value);
   saveState();
@@ -2046,6 +2088,7 @@ function handleSticker() {
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
 const MP_TITLES = { menu: '小手机', preset: '预设管理', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定' };
+let mpCurrent = 'menu';
 
 function openMpView(page = 'menu') {
   loadMpPanel();
@@ -2059,9 +2102,15 @@ function closeMpView() {
   document.body.style.overflow = '';
 }
 
+// 返回键全栈逻辑：子页面 → 菜单 → 聊天界面
+function mpGoBack() {
+  if (mpCurrent === 'menu') closeMpView();
+  else navMp('menu');
+}
+
 function navMp(page) {
+  mpCurrent = page;
   $('mpTitle').textContent = MP_TITLES[page] || '小手机';
-  $('mpBack').hidden = (page === 'menu');
   document.querySelectorAll('.mp-page').forEach((p) => {
     p.hidden = (p.id !== 'mpPage-' + page);
   });
@@ -2079,9 +2128,10 @@ function loadMpPanel() {
   // AI 设定
   $('aiNameRole').value = state.aiName || '';
   $('aiPersona').value = (state.aiProfile && state.aiProfile.persona) || '';
-  // 预设
-  renderPresetList();
-  renderRegexList();
+  // 预设分组 + 正则分区
+  closePresetEditor();
+  renderPresetGroups();
+  renderRegexGroups();
 }
 
 function saveUserProfile() {
@@ -2124,94 +2174,284 @@ function handleAvatarUpload(file) {
   reader.readAsDataURL(file);
 }
 
-// ============ 预设：酒馆 JSON 导入 ============
-function importPresetFile(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    let data;
-    try {
-      data = JSON.parse(e.target.result);
-    } catch (err) {
-      alert('JSON 解析失败：' + err.message);
-      return;
-    }
-    if (!data || !Array.isArray(data.prompts)) {
-      alert('不像酒馆预设格式哦（没找到 prompts 数组）');
-      return;
-    }
-    const prompts = data.prompts
-      .filter((p) => p && typeof p.content === 'string' && p.content.trim())
-      .map((p) => ({
-        name: String(p.name || '未命名'),
-        content: p.content,
-        enabled: p.enabled !== false,
-      }));
-    if (!prompts.length) {
-      alert('预设里没有可用的提示词条目');
-      return;
-    }
-    state.preset = { name: file.name.replace(/\.json$/i, ''), prompts };
-    saveState();
-    renderPresetList();
-    toast(`已导入 ${prompts.length} 条预设提示词 ✓`);
-  };
-  reader.readAsText(file);
+// ============ 预设/世界书/正则：导入识别与分组管理 ============
+const gid = () => 'g_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const PRESET_TYPE_LABEL = { preset: '预设', worldbook: '世界书' };
+
+// 自动识别文件类型：酒馆预设 / 世界书 / 酒馆正则
+function classifyImportFile(data) {
+  if (!data) return null;
+  if (Array.isArray(data.prompts)) return 'preset';
+  if (data.entries && (Array.isArray(data.entries) || typeof data.entries === 'object')) return 'worldbook';
+  if (Array.isArray(data) && data.some((x) => x && (x.findRegex || x.pattern))) return 'regex';
+  if (!Array.isArray(data) && typeof data === 'object' && (data.findRegex || data.pattern)) return 'regex';
+  return null;
 }
 
-// 导出为酒馆兼容格式（导入端也认这个结构，可来回倒腾/覆盖）
-function exportPreset() {
-  if (!state.preset || !state.preset.prompts || !state.preset.prompts.length) {
-    toast('还没有预设可导出');
-    return;
-  }
-  const data = { name: state.preset.name || 'preset', prompts: state.preset.prompts };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${state.preset.name || 'xiaoshouji-preset'}.json`;
-  a.click();
+// 酒馆正则条目 → 内部格式（findRegex→pattern，replaceString→replacement，$1 原生支持）
+function normalizeRegexRules(data) {
+  const arr = Array.isArray(data) ? data : [data];
+  return arr
+    .filter((x) => x && (x.findRegex || x.pattern))
+    .map((x) => ({
+      name: String(x.scriptName || x.name || x.findRegex || x.pattern || ''),
+      pattern: String(x.findRegex || x.pattern || ''),
+      replacement: String(x.replaceString ?? x.replacement ?? ''),
+      enabled: x.disabled ? false : x.enabled !== false,
+    }));
 }
 
-function renderPresetList() {
-  const box = $('presetPromptList');
-  box.innerHTML = '';
-  const p = state.preset;
-  $('presetNameLabel').textContent = p && p.name ? `当前预设：${p.name}` : '未导入预设';
-  if (!p || !p.prompts || !p.prompts.length) {
-    box.appendChild(el('div', { class: 'role-empty' }, '还没有预设～点上面按钮导入酒馆 JSON'));
-    return;
-  }
-  p.prompts.forEach((item, idx) => {
-    const cb = el('input', { type: 'checkbox' });
-    cb.checked = item.enabled !== false;
-    cb.addEventListener('change', () => { item.enabled = cb.checked; saveState(); });
-    const nameSpan = el('span', { class: 'preset-item-name', title: item.content.slice(0, 500) }, item.name);
-    const del = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
-    del.appendChild(icon('i-trash', 'icon-sm'));
-    del.addEventListener('click', () => { p.prompts.splice(idx, 1); saveState(); renderPresetList(); });
-    box.appendChild(el('div', { class: 'preset-item' }, cb, nameSpan, del));
+// 世界书条目 → 统一 items 结构
+function normalizeWorldbook(data) {
+  const raw = Array.isArray(data.entries) ? data.entries : Object.values(data.entries);
+  return raw
+    .filter((en) => en && typeof en.content === 'string' && en.content.trim())
+    .map((en) => ({
+      name: String(en.comment || en.key || (Array.isArray(en.keys) && en.keys[0]) || '未命名'),
+      content: en.content,
+      enabled: en.disable ? false : en.enabled !== false,
+    }));
+}
+
+// 预设页批量导入：自动识别类型并归类（正则文件自动送去正则分区）
+function importPresetFiles(fileList) {
+  const files = [...fileList];
+  let done = 0;
+  const report = [];
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const fname = file.name.replace(/\.json$/i, '');
+      try {
+        const data = JSON.parse(e.target.result);
+        const type = classifyImportFile(data);
+        if (type === 'preset') {
+          const items = data.prompts
+            .filter((p) => p && typeof p.content === 'string' && p.content.trim())
+            .map((p) => ({ name: String(p.name || '未命名'), content: p.content, enabled: p.enabled !== false }));
+          if (items.length) {
+            state.presetGroups.push({ id: gid(), name: fname, type: 'preset', enabled: true, items });
+            report.push(`预设「${fname}」${items.length}条`);
+          } else report.push(`「${fname}」没有可用条目`);
+        } else if (type === 'worldbook') {
+          const items = normalizeWorldbook(data);
+          if (items.length) {
+            state.presetGroups.push({ id: gid(), name: fname, type: 'worldbook', enabled: true, items });
+            report.push(`世界书「${fname}」${items.length}条`);
+          } else report.push(`「${fname}」没有可用条目`);
+        } else if (type === 'regex') {
+          const rules = normalizeRegexRules(data);
+          if (rules.length) {
+            state.regexGroups[0].rules.push(...rules);
+            report.push(`正则「${fname}」${rules.length}条 → 已归入「${state.regexGroups[0].name}」`);
+          } else report.push(`「${fname}」没有可用规则`);
+        } else {
+          report.push(`「${fname}」认不出类型，跳过`);
+        }
+      } catch (err) {
+        report.push(`「${file.name}」解析失败`);
+      }
+      if (++done === files.length) {
+        saveState();
+        renderPresetGroups();
+        renderRegexGroups();
+        toast(report.join('；') || '没有可导入的内容');
+      }
+    };
+    reader.readAsText(file);
   });
 }
 
-// ============ 正则替换规则列表 ============
-function renderRegexList() {
-  const box = $('regexRuleList');
+// 正则页批量导入：进所选分区
+function importRegexFiles(fileList) {
+  const files = [...fileList];
+  const targetId = $('regexTargetGroup').value;
+  const group = state.regexGroups.find((g) => g.id === targetId) || state.regexGroups[0];
+  let done = 0;
+  let count = 0;
+  let failed = 0;
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const rules = normalizeRegexRules(JSON.parse(e.target.result));
+        if (rules.length) {
+          group.rules.push(...rules);
+          count += rules.length;
+        } else failed++;
+      } catch (err) {
+        failed++;
+      }
+      if (++done === files.length) {
+        saveState();
+        renderRegexGroups();
+        toast((count ? `已导入 ${count} 条到「${group.name}」✓` : '没有可导入的规则') + (failed ? `；${failed} 个文件失败` : ''));
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+// 单个分组导出为酒馆兼容 JSON（可再导回，实现替换/覆盖）
+function exportPresetGroup(g) {
+  const data = {
+    name: g.name,
+    prompts: (g.items || []).map((it) => ({ name: it.name, content: it.content, enabled: it.enabled !== false })),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${g.name || 'preset'}.json`;
+  a.click();
+}
+
+// ============ 预设分组渲染 ============
+function renderPresetGroups() {
+  const box = $('presetGroupList');
   box.innerHTML = '';
-  if (!state.regexRules.length) {
-    box.appendChild(el('div', { class: 'role-empty' }, '还没有规则～例如把「宝贝」替换成「月月」'));
+  if (!state.presetGroups.length) {
+    box.appendChild(el('div', { class: 'role-empty' }, '还没有预设～点上面导入，支持一次选多个 JSON'));
+    return;
   }
-  state.regexRules.forEach((rule, idx) => {
-    const cb = el('input', { type: 'checkbox' });
-    cb.checked = rule.enabled !== false;
-    cb.addEventListener('change', () => { rule.enabled = cb.checked; saveState(); });
-    const pat = el('input', { class: 'field-input', type: 'text', placeholder: '正则（如 宝贝）', value: rule.pattern || '' });
-    pat.addEventListener('change', () => { rule.pattern = pat.value; saveState(); });
-    const rep = el('input', { class: 'field-input', type: 'text', placeholder: '替换成（如 月月）', value: rule.replacement || '' });
-    rep.addEventListener('change', () => { rule.replacement = rep.value; saveState(); });
-    const del = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
-    del.appendChild(icon('i-trash', 'icon-sm'));
-    del.addEventListener('click', () => { state.regexRules.splice(idx, 1); saveState(); renderRegexList(); });
-    box.appendChild(el('div', { class: 'regex-item' }, cb, pat, rep, del));
+  state.presetGroups.forEach((g) => {
+    const card = el('div', { class: 'pg-card' });
+    // 组头：开关 + 名称 + 类型徽标 + 操作
+    const head = el('div', { class: 'pg-head' });
+    const gcb = el('input', { type: 'checkbox', title: '整组开关' });
+    gcb.checked = g.enabled !== false;
+    gcb.addEventListener('change', () => { g.enabled = gcb.checked; saveState(); });
+    const addB = el('button', { class: 'msg-action-btn', title: '添加条目', 'aria-label': '添加条目' });
+    addB.appendChild(icon('i-plus', 'icon-sm'));
+    addB.addEventListener('click', () => openPresetEditor(g, null));
+    const expB = el('button', { class: 'msg-action-btn', title: '导出此分组', 'aria-label': '导出' });
+    expB.appendChild(icon('i-export', 'icon-sm'));
+    expB.addEventListener('click', () => exportPresetGroup(g));
+    const delB = el('button', { class: 'msg-action-btn', title: '删除分组', 'aria-label': '删除分组' });
+    delB.appendChild(icon('i-trash', 'icon-sm'));
+    delB.addEventListener('click', () => {
+      if (!confirm(`删除分组「${g.name}」及全部 ${(g.items || []).length} 条？`)) return;
+      state.presetGroups = state.presetGroups.filter((x) => x.id !== g.id);
+      saveState();
+      renderPresetGroups();
+    });
+    head.appendChild(gcb);
+    head.appendChild(el('span', { class: 'pg-name' }, g.name));
+    head.appendChild(el('span', { class: 'pg-badge' }, PRESET_TYPE_LABEL[g.type] || '预设'));
+    head.appendChild(addB);
+    head.appendChild(expB);
+    head.appendChild(delB);
+    card.appendChild(head);
+    // 条目行
+    (g.items || []).forEach((it, idx) => {
+      const row = el('div', { class: 'preset-item' });
+      const cb = el('input', { type: 'checkbox' });
+      cb.checked = it.enabled !== false;
+      cb.addEventListener('change', () => { it.enabled = cb.checked; saveState(); });
+      const editB = el('button', { class: 'msg-action-btn', title: '编辑', 'aria-label': '编辑' });
+      editB.appendChild(icon('i-pencil', 'icon-sm'));
+      editB.addEventListener('click', () => openPresetEditor(g, it));
+      const delIt = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
+      delIt.appendChild(icon('i-trash', 'icon-sm'));
+      delIt.addEventListener('click', () => { g.items.splice(idx, 1); saveState(); renderPresetGroups(); });
+      row.appendChild(cb);
+      row.appendChild(el('span', { class: 'preset-item-name', title: (it.content || '').slice(0, 300) }, it.name));
+      row.appendChild(editB);
+      row.appendChild(delIt);
+      card.appendChild(row);
+    });
+    box.appendChild(card);
+  });
+}
+
+// ============ 预设条目编辑器（手动编写/修改） ============
+let presetEditing = null; // { group, item|null }
+
+function openPresetEditor(group, item) {
+  presetEditing = { group, item };
+  $('peTitle').textContent = item ? `编辑条目（${group.name}）` : `新建条目（${group.name}）`;
+  $('peName').value = item ? item.name : '';
+  $('peContent').value = item ? item.content : '';
+  $('presetEditor').hidden = false;
+  $('presetEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closePresetEditor() {
+  presetEditing = null;
+  $('presetEditor').hidden = true;
+}
+
+function savePresetEditor() {
+  if (!presetEditing) return;
+  const name = $('peName').value.trim() || '未命名';
+  const content = $('peContent').value;
+  if (presetEditing.item) {
+    presetEditing.item.name = name;
+    presetEditing.item.content = content;
+  } else {
+    presetEditing.group.items.push({ name, content, enabled: true });
+  }
+  saveState();
+  closePresetEditor();
+  renderPresetGroups();
+  toast('已保存 ✓');
+}
+
+// ============ 正则分区渲染 ============
+function renderRegexGroups() {
+  if (!state.regexGroups.length) {
+    state.regexGroups.push({ id: gid(), name: '默认分区', enabled: true, rules: [] });
+  }
+  // 刷新"导入到分区"下拉
+  const sel = $('regexTargetGroup');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  state.regexGroups.forEach((g) => sel.appendChild(el('option', { value: g.id }, g.name)));
+  if (state.regexGroups.some((g) => g.id === prev)) sel.value = prev;
+
+  const box = $('regexGroupList');
+  box.innerHTML = '';
+  state.regexGroups.forEach((g) => {
+    const card = el('div', { class: 'pg-card' });
+    const head = el('div', { class: 'pg-head' });
+    const gcb = el('input', { type: 'checkbox', title: '整区开关' });
+    gcb.checked = g.enabled !== false;
+    gcb.addEventListener('change', () => { g.enabled = gcb.checked; saveState(); });
+    const addB = el('button', { class: 'msg-action-btn', title: '添加规则', 'aria-label': '添加规则' });
+    addB.appendChild(icon('i-plus', 'icon-sm'));
+    addB.addEventListener('click', () => { g.rules.push({ name: '', pattern: '', replacement: '', enabled: true }); saveState(); renderRegexGroups(); });
+    const delB = el('button', { class: 'msg-action-btn', title: '删除分区', 'aria-label': '删除分区' });
+    delB.appendChild(icon('i-trash', 'icon-sm'));
+    delB.addEventListener('click', () => {
+      if (!confirm(`删除分区「${g.name}」及全部 ${g.rules.length} 条规则？`)) return;
+      state.regexGroups = state.regexGroups.filter((x) => x.id !== g.id);
+      saveState();
+      renderRegexGroups();
+    });
+    head.appendChild(gcb);
+    head.appendChild(el('span', { class: 'pg-name' }, g.name));
+    head.appendChild(el('span', { class: 'pg-badge' }, `${g.rules.length}条`));
+    head.appendChild(addB);
+    head.appendChild(delB);
+    card.appendChild(head);
+    g.rules.forEach((rule, idx) => {
+      const row = el('div', { class: 'regex-item' });
+      const cb = el('input', { type: 'checkbox' });
+      cb.checked = rule.enabled !== false;
+      cb.addEventListener('change', () => { rule.enabled = cb.checked; saveState(); });
+      const pat = el('input', { class: 'field-input', type: 'text', placeholder: '正则（如 宝贝）', value: rule.pattern || '' });
+      pat.addEventListener('change', () => { rule.pattern = pat.value; rule.name = pat.value; saveState(); });
+      const rep = el('input', { class: 'field-input', type: 'text', placeholder: '替换成（如 月月）', value: rule.replacement || '' });
+      rep.addEventListener('change', () => { rule.replacement = rep.value; saveState(); });
+      const delR = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
+      delR.appendChild(icon('i-trash', 'icon-sm'));
+      delR.addEventListener('click', () => { g.rules.splice(idx, 1); saveState(); renderRegexGroups(); });
+      row.appendChild(cb);
+      row.appendChild(pat);
+      row.appendChild(rep);
+      row.appendChild(delR);
+      card.appendChild(row);
+    });
+    box.appendChild(card);
   });
 }
 
@@ -2252,9 +2492,9 @@ function init() {
   $('closeSettingsBottom').addEventListener('click', closeSettings);
 
   // ===== 第一期：小手机全屏视图（左上角品牌区进入） =====
+  $('mpVersion').textContent = APP_VERSION;
   $('brandBtn').addEventListener('click', () => openMpView('menu'));
-  $('mpClose').addEventListener('click', closeMpView);
-  $('mpBack').addEventListener('click', () => navMp('menu'));
+  $('mpBack').addEventListener('click', mpGoBack);
   document.querySelectorAll('.mp-menu-item').forEach((btn) => {
     btn.addEventListener('click', () => navMp(btn.dataset.mp));
   });
@@ -2283,18 +2523,35 @@ function init() {
     toast('已保存 ✓');
   });
 
-  // 预设导入/导出 + 正则规则
+  // 预设分组：批量导入 + 新建分组 + 条目编辑器
   $('importPresetBtn').addEventListener('click', () => $('presetInput').click());
-  $('exportPresetBtn').addEventListener('click', exportPreset);
   $('presetInput').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (f) importPresetFile(f);
+    if (e.target.files.length) importPresetFiles(e.target.files);
     e.target.value = '';
   });
-  $('addRegexBtn').addEventListener('click', () => {
-    state.regexRules.push({ pattern: '', replacement: '', enabled: true });
+  $('addPresetGroupBtn').addEventListener('click', () => {
+    const name = prompt('新分组的名字：', '我的预设');
+    if (!name || !name.trim()) return;
+    state.presetGroups.push({ id: gid(), name: name.trim(), type: 'preset', enabled: true, items: [] });
     saveState();
-    renderRegexList();
+    renderPresetGroups();
+  });
+  $('peSave').addEventListener('click', savePresetEditor);
+  $('peCancel').addEventListener('click', closePresetEditor);
+
+  // 正则分区：批量导入到所选分区 + 新建分区
+  $('importRegexBtn').addEventListener('click', () => $('regexInput').click());
+  $('regexInput').addEventListener('change', (e) => {
+    if (e.target.files.length) importRegexFiles(e.target.files);
+    e.target.value = '';
+  });
+  $('addRegexGroupBtn').addEventListener('click', () => {
+    const name = prompt('新分区的名字：', '我的分区');
+    if (!name || !name.trim()) return;
+    state.regexGroups.push({ id: gid(), name: name.trim(), enabled: true, rules: [] });
+    saveState();
+    renderRegexGroups();
+    $('regexTargetGroup').value = state.regexGroups[state.regexGroups.length - 1].id;
   });
 
   // 切换显示密码

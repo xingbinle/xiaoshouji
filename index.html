@@ -333,7 +333,8 @@
 
     <input type="file" id="imageInput" accept="image/*" hidden>
     <input type="file" id="avatarInput" accept="image/*" hidden>
-    <input type="file" id="presetInput" accept=".json,application/json" hidden>
+    <input type="file" id="presetInput" accept=".json,application/json" multiple hidden>
+    <input type="file" id="regexInput" accept=".json,application/json" multiple hidden>
   </footer>
 
   <!-- 设置面板 -->
@@ -419,20 +420,9 @@
 
         <section class="settings-group">
           <h3 class="settings-group-title">
-            <svg class="icon"><use href="#i-paw"/></svg>
-            AI 人设
+            <svg class="icon"><use href="#i-gear"/></svg>
+            生成参数
           </h3>
-
-          <label class="field">
-            <span class="field-label">AI 名字</span>
-            <input type="text" id="aiName" class="field-input" placeholder="小克宝宝">
-          </label>
-
-          <label class="field">
-            <span class="field-label">系统提示词（System Prompt）</span>
-            <textarea id="systemPrompt" class="field-input field-textarea" rows="6" placeholder="留空使用默认小克宝宝人设"></textarea>
-            <span class="field-hint">高级用户可自定义 AI 行为模式</span>
-          </label>
 
           <div class="field-row">
             <label class="field">
@@ -445,6 +435,24 @@
               <input type="number" id="maxTokens" class="field-input" min="100" max="32000" value="4000">
             </label>
           </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">上下文长度（条）</span>
+              <input type="number" id="contextLength" class="field-input" min="10" max="200" step="10" value="30">
+            </label>
+
+            <label class="field">
+              <span class="field-label">频率惩罚</span>
+              <input type="number" id="frequencyPenalty" class="field-input" min="-2" max="2" step="0.1" value="0">
+            </label>
+          </div>
+
+          <label class="field">
+            <span class="field-label">存在惩罚</span>
+            <input type="number" id="presencePenalty" class="field-input" min="-2" max="2" step="0.1" value="0">
+          </label>
+          <span class="field-hint">AI 人设已搬到左上角小手机图标里啦 🐾</span>
         </section>
 
         <section class="settings-group">
@@ -496,14 +504,11 @@
   <!-- 小手机全屏视图（菜单页 + 功能子页面，第一期） -->
   <div class="mp-view" id="mpView" hidden>
     <div class="mp-header">
-      <button class="mp-back" id="mpBack" hidden>
+      <button class="mp-back" id="mpBack">
         <svg class="icon-sm"><use href="#i-chevron-right"/></svg>
         返回
       </button>
       <h2 class="mp-title" id="mpTitle">小手机</h2>
-      <button class="close-btn" id="mpClose" aria-label="关闭">
-        <svg class="icon"><use href="#i-close"/></svg>
-      </button>
     </div>
     <div class="mp-body">
       <!-- 菜单页 -->
@@ -528,37 +533,53 @@
           <span class="mp-menu-label">用户设定</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <div class="mp-version" id="mpVersion"></div>
       </div>
 
-      <!-- 预设管理 -->
+      <!-- 预设管理（分组：预设/世界书自动分类） -->
       <div class="mp-page" id="mpPage-preset" hidden>
         <div class="settings-group">
           <div class="button-row">
             <button class="btn-secondary" id="importPresetBtn">
               <svg class="icon-sm"><use href="#i-import"/></svg>
-              导入酒馆预设 JSON
+              导入 JSON（可多选）
             </button>
-            <button class="btn-secondary" id="exportPresetBtn">
-              <svg class="icon-sm"><use href="#i-export"/></svg>
-              导出预设
+            <button class="btn-secondary" id="addPresetGroupBtn">
+              <svg class="icon-sm"><use href="#i-plus"/></svg>
+              新建分组
             </button>
           </div>
-          <div class="field-hint" id="presetNameLabel">未导入预设</div>
-          <div id="presetPromptList" class="preset-list"></div>
+          <span class="field-hint">酒馆预设 / 世界书 / 正则 JSON 自动识别分类；条目可单独开关、编辑、删除</span>
+          <div id="presetGroupList"></div>
+          <!-- 条目编辑器（手动编写/修改提示词） -->
+          <div class="pe-editor" id="presetEditor" hidden>
+            <div class="field-hint" id="peTitle">编辑条目</div>
+            <input type="text" id="peName" class="field-input" placeholder="条目名称">
+            <textarea id="peContent" class="field-input field-textarea" rows="7" placeholder="提示词内容…"></textarea>
+            <div class="button-row">
+              <button class="btn-secondary" id="peCancel">取消</button>
+              <button class="btn-primary" id="peSave">保存条目</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 正则替换 -->
+      <!-- 正则替换（自定义分区） -->
       <div class="mp-page" id="mpPage-regex" hidden>
         <div class="settings-group">
-          <div id="regexRuleList" class="regex-list"></div>
           <div class="button-row">
-            <button class="btn-secondary" id="addRegexBtn">
+            <button class="btn-secondary" id="importRegexBtn">
+              <svg class="icon-sm"><use href="#i-import"/></svg>
+              导入正则（可多选）
+            </button>
+            <select id="regexTargetGroup" class="field-input regex-target" title="导入到分区"></select>
+            <button class="btn-secondary" id="addRegexGroupBtn">
               <svg class="icon-sm"><use href="#i-plus"/></svg>
-              添加规则
+              新建分区
             </button>
           </div>
-          <span class="field-hint">按顺序逐条替换 AI 回复文本，支持 $1 捕获组；写错的规则会自动跳过</span>
+          <span class="field-hint">支持酒馆正则格式（findRegex/replaceString，$1 捕获组）；分区和单条都能独立开关</span>
+          <div id="regexGroupList"></div>
         </div>
       </div>
 
@@ -708,6 +729,13 @@
   <script src="js/app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
+      // ★ 移动端自动更新：新 SW 接管时自动刷新一次，旧缓存不再赖着不走
+      let swRefreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (swRefreshing) return;
+        swRefreshing = true;
+        window.location.reload();
+      });
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       });

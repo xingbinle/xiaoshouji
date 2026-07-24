@@ -2185,6 +2185,78 @@ a {
   color: var(--ink-light);
 }
 
+/* 菜单页版本号 */
+.mp-version {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-light);
+  padding: 18px 0 6px;
+  letter-spacing: 0.05em;
+}
+
+/* 分组卡片（预设分组 / 正则分区通用） */
+.pg-card {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pg-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--sky-deep);
+  background: var(--sky-pale);
+  border: 1px solid var(--sky);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* 预设条目编辑器 */
+.pe-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--sky);
+  border-radius: var(--r-md);
+}
+
+.pe-editor[hidden] {
+  display: none;
+}
+
+/* 正则导入目标分区下拉 */
+.regex-target {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
 /* 预设列表 / 正则列表 */
 .preset-list,
 .regex-list {
