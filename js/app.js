@@ -2047,8 +2047,8 @@ function handleSticker() {
 // ============ 第一期：小手机菜单 + 三件套面板 ============
 function toggleBrandMenu(force) {
   const menu = $('brandMenu');
-  const isShow = force !== undefined ? force : menu.hidden;
-  menu.hidden = !isShow;
+  const isShow = force !== undefined ? force : !menu.classList.contains('show');
+  menu.classList.toggle('show', isShow);
 }
 
 function openRolePanel(tab) {
@@ -2250,7 +2250,7 @@ function init() {
   });
   document.addEventListener('click', (e) => {
     const menu = $('brandMenu');
-    if (!menu.hidden && !menu.contains(e.target) && !e.target.closest('#brandBtn')) {
+    if (menu.classList.contains('show') && !menu.contains(e.target) && !e.target.closest('#brandBtn')) {
       toggleBrandMenu(false);
     }
   });

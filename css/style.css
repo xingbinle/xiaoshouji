@@ -2087,6 +2087,7 @@ a {
 }
 
 .brand-menu {
+  display: none; /* ★ 用 .show 类控制显隐——直接写 display:flex 会盖掉 hidden 属性 */
   position: absolute;
   top: calc(100% + 6px);
   left: var(--gap-md, 16px);
@@ -2095,11 +2096,14 @@ a {
   border-radius: var(--r-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
-  display: flex;
   flex-direction: column;
   min-width: 176px;
   z-index: 60;
   animation: fade-in 0.15s var(--ease-out);
+}
+
+.brand-menu.show {
+  display: flex;
 }
 
 .brand-menu-item {
