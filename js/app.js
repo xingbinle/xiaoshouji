@@ -98,7 +98,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v18'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v19'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -754,6 +754,8 @@ function buildArtifact(code) {
 
 // ============ API 调用 ============
 let currentAbortController = null;
+// 调试后台：记录最后一次发给 API 的完整报文（黄金顺序可视化用）
+let lastRequestDebug = null;
 
 // opts.system 覆盖 system prompt（滚动总结用）；opts.maxTokens 覆盖上限；
 // opts.background=true 时不占用 currentAbortController（后台静默调用，停止按钮不误伤）
@@ -800,6 +802,7 @@ async function callAPI(messages, model, tools = null, opts = {}) {
   }
 
   const body = JSON.stringify(bodyObj);
+  lastRequestDebug = bodyObj;
 
   // 创建 AbortController 让停止按钮能中断（后台调用不占用，免误伤）
   const controller = new AbortController();
@@ -981,8 +984,9 @@ function serializeMessagesForAPI(messages) {
   return apiMessages;
 }
 
-// ============ system prompt 组装管线（第一期） ============
-// 固定顺序：预设 → AI设定 → 用户设定 → 表情清单（二期）→ 记忆总结
+// ============ system prompt 组装管线（酒馆同款黄金顺序） ============
+// ① 核心系统提示词/破限（主提示词 + 预设组条目）→ ② 世界书 → ③ 角色卡/人设
+// → ④ 用户设定 →（历史在 messages 里）→ ⑥ 末尾补充：记忆总结（+二期表情清单）
 // 稳定内容在前、易变内容在后，利于 API 缓存命中
 function buildSystemPrompt() {
   const u = state.userProfile || {};
@@ -990,27 +994,33 @@ function buildSystemPrompt() {
     .replace(/\{\{\s*user\s*\}\}/gi, u.nickname || u.name || '月月')
     .replace(/\{\{\s*char\s*\}\}/gi, state.aiName);
   const parts = [];
-
-  // 1. 预设分组（勾选的分组 + 勾选的条目；预设/世界书统一进 system prompt）
-  if (state.presetGroups && state.presetGroups.length) {
+  const groupTexts = (type) => {
     const texts = [];
-    for (const g of state.presetGroups) {
-      if (!g || g.enabled === false) continue;
+    for (const g of (state.presetGroups || [])) {
+      if (!g || g.enabled === false || (g.type || 'preset') !== type) continue;
       for (const it of (g.items || [])) {
         if (it.enabled !== false && it.content && it.content.trim()) texts.push(macro(it.content.trim()));
       }
     }
-    if (texts.length) parts.push(texts.join('\n\n'));
-  }
+    return texts;
+  };
 
-  // 2. AI 角色设定（默认人设 / 高级自定义 + 人设补充）
-  let aiPart = (state.systemPrompt && state.systemPrompt.trim()) ? state.systemPrompt : DEFAULT_SYSTEM_PROMPT;
+  // ① 核心系统提示词/破限指令：主提示词 + 预设组（酒馆预设类型）条目
+  let core = (state.systemPrompt && state.systemPrompt.trim()) ? state.systemPrompt.trim() : DEFAULT_SYSTEM_PROMPT;
+  const presetTexts = groupTexts('preset');
+  if (presetTexts.length) core += '\n\n' + presetTexts.join('\n\n');
+  parts.push(core);
+
+  // ② 世界书/背景补充
+  const wbTexts = groupTexts('worldbook');
+  if (wbTexts.length) parts.push(`【世界书】\n${wbTexts.join('\n\n')}`);
+
+  // ③ 角色卡/AI 人设定义
   if (state.aiProfile && state.aiProfile.persona && state.aiProfile.persona.trim()) {
-    aiPart += `\n\n【${state.aiName} 的补充设定】\n${macro(state.aiProfile.persona.trim())}`;
+    parts.push(`【${state.aiName} 的人设定义】\n${macro(state.aiProfile.persona.trim())}`);
   }
-  parts.push(aiPart);
 
-  // 3. 用户设定
+  // ④ 用户设定
   const uLines = [];
   if (u.name) uLines.push(`名字：${u.name}`);
   if (u.nickname) uLines.push(`昵称：${u.nickname}（平时这样称呼她）`);
@@ -1019,17 +1029,17 @@ function buildSystemPrompt() {
   if (u.bio) uLines.push(`关于她：${u.bio}`);
   if (uLines.length) parts.push(`【用户设定】\n${uLines.join('\n')}`);
 
-  // 4. 表情清单（第二期填充，位置预留）
+  // ⑤ 多轮历史：在 messages 数组里按时间顺序追加（不在 system prompt 内）
 
-  // 5. 记忆总结（易变，放最后）
-  const memParts = [];
+  // ⑥ 末尾补充提示词：表情清单（二期预留）+ 记忆总结（易变，放最后）
+  const tailParts = [];
   if (state.memories && state.memories.length) {
-    memParts.push('【长期记忆】\n' + state.memories.map(m => `- [${m.time}] ${m.text}`).join('\n'));
+    tailParts.push('【长期记忆】\n' + state.memories.map(m => `- [${m.time}] ${m.text}`).join('\n'));
   }
   if (state.summary && state.summary.trim()) {
-    memParts.push(`【之前聊天的总结】\n${state.summary.trim()}`);
+    tailParts.push(`【之前聊天的总结】\n${state.summary.trim()}`);
   }
-  if (memParts.length) parts.push(memParts.join('\n\n'));
+  if (tailParts.length) parts.push(tailParts.join('\n\n'));
 
   return parts.join('\n\n');
 }
@@ -1148,6 +1158,13 @@ async function sendMessage() {
     if (!apiMessages.length && state.messages.length) {
       // 兜底：边界外没东西了（比如重生成撞边界），至少带最近几条
       apiMessages = serializeMessagesForAPI(state.messages.slice(-10));
+    }
+
+    // ★ 正则流水线·发送前：用户输入先过一遍正则再打包进 payload（只改发出的，不动聊天记录显示）
+    if (state.regexGroups && state.regexGroups.length) {
+      for (const m of apiMessages) {
+        if (m.role === 'user' && typeof m.content === 'string') m.content = applyRegexRules(m.content);
+      }
     }
 
     // ★ M2: 注入待领取红包信息，让 AI 知道可以领
@@ -2087,7 +2104,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', debug: '调试后台' };
 let mpCurrent = 'menu';
 
 function openMpView(page = 'menu') {
@@ -2114,6 +2131,34 @@ function navMp(page) {
   document.querySelectorAll('.mp-page').forEach((p) => {
     p.hidden = (p.id !== 'mpPage-' + page);
   });
+  if (page === 'debug') renderDebugPanel();
+}
+
+// ============ 调试后台：黄金顺序可视化 ============
+// 展示最近一次真实请求的完整报文；还没发过消息就预览当前 system prompt
+function renderDebugPanel() {
+  const box = $('debugPayload');
+  if (!box) return;
+  const SLOT = ['① 核心提示词/破限', '② 世界书', '③ 角色卡/人设', '④ 用户设定', '⑤ 聊天历史', '⑥ 当前消息'];
+  const lines = [];
+  let msgs;
+  if (lastRequestDebug && lastRequestDebug.messages && lastRequestDebug.messages.length) {
+    lines.push(`模型：${lastRequestDebug.model}　温度：${lastRequestDebug.temperature}　max_tokens：${lastRequestDebug.max_tokens}`);
+    msgs = lastRequestDebug.messages;
+  } else {
+    lines.push('（还没发过消息，下面是现在会发出去的 system prompt 预览）');
+    msgs = [{ role: 'system', content: buildSystemPrompt() }];
+  }
+  msgs.forEach((m, i) => {
+    let slot;
+    if (m.role === 'system') slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→末尾记忆总结）`;
+    else if (i === msgs.length - 1) slot = `${SLOT[5]} [${m.role}]`;
+    else slot = `${SLOT[4]} [${m.role}]`;
+    lines.push(`\n── ${slot} ${'─'.repeat(20)}`);
+    const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+    lines.push(c.length > 1500 ? c.slice(0, 1500) + `\n…（共 ${c.length} 字，截断显示）` : c);
+  });
+  box.textContent = lines.join('\n');
 }
 
 function loadMpPanel() {
@@ -2184,6 +2229,8 @@ function classifyImportFile(data) {
   if (Array.isArray(data.prompts)) return 'preset';
   if (data.entries && (Array.isArray(data.entries) || typeof data.entries === 'object')) return 'worldbook';
   if (Array.isArray(data) && data.some((x) => x && (x.findRegex || x.pattern))) return 'regex';
+  // 裸条目数组（[{name, content}, …]，无包装）：按预设处理
+  if (Array.isArray(data) && data.length && data.every((x) => x && typeof x.content === 'string')) return 'preset';
   if (!Array.isArray(data) && typeof data === 'object' && (data.findRegex || data.pattern)) return 'regex';
   return null;
 }
@@ -2213,9 +2260,14 @@ function normalizeWorldbook(data) {
     }));
 }
 
-// 预设页批量导入：自动识别类型并归类（正则文件自动送去正则分区）
+// 预设页批量导入：自动识别类型；选中目标分组时条目直接进该组，否则新建分组
+// （正则文件送去正则页当前选中的分区，没选就进第一个分区）
 function importPresetFiles(fileList) {
   const files = [...fileList];
+  const targetId = $('presetTargetGroup') ? $('presetTargetGroup').value : '';
+  const targetGroup = state.presetGroups.find((g) => g.id === targetId) || null;
+  const regexTargetId = $('regexTargetGroup') ? $('regexTargetGroup').value : '';
+  const regexGroup = state.regexGroups.find((g) => g.id === regexTargetId) || state.regexGroups[0];
   let done = 0;
   const report = [];
   files.forEach((file) => {
@@ -2225,25 +2277,28 @@ function importPresetFiles(fileList) {
       try {
         const data = JSON.parse(e.target.result);
         const type = classifyImportFile(data);
-        if (type === 'preset') {
-          const items = data.prompts
-            .filter((p) => p && typeof p.content === 'string' && p.content.trim())
-            .map((p) => ({ name: String(p.name || '未命名'), content: p.content, enabled: p.enabled !== false }));
+        if (type === 'preset' || type === 'worldbook') {
+          const items = type === 'preset'
+            ? (data.prompts || data)
+                .filter((p) => p && typeof p.content === 'string' && p.content.trim())
+                .map((p) => ({ name: String(p.name || '未命名'), content: p.content, enabled: p.enabled !== false }))
+            : normalizeWorldbook(data);
+          const label = type === 'preset' ? '预设' : '世界书';
           if (items.length) {
-            state.presetGroups.push({ id: gid(), name: fname, type: 'preset', enabled: true, items });
-            report.push(`预设「${fname}」${items.length}条`);
-          } else report.push(`「${fname}」没有可用条目`);
-        } else if (type === 'worldbook') {
-          const items = normalizeWorldbook(data);
-          if (items.length) {
-            state.presetGroups.push({ id: gid(), name: fname, type: 'worldbook', enabled: true, items });
-            report.push(`世界书「${fname}」${items.length}条`);
+            if (targetGroup) {
+              // 定向导入：压入当前选中分组
+              targetGroup.items.push(...items);
+              report.push(`${label}「${fname}」${items.length}条 →「${targetGroup.name}」`);
+            } else {
+              state.presetGroups.push({ id: gid(), name: fname, type, enabled: true, items });
+              report.push(`${label}「${fname}」${items.length}条 → 新分组`);
+            }
           } else report.push(`「${fname}」没有可用条目`);
         } else if (type === 'regex') {
           const rules = normalizeRegexRules(data);
           if (rules.length) {
-            state.regexGroups[0].rules.push(...rules);
-            report.push(`正则「${fname}」${rules.length}条 → 已归入「${state.regexGroups[0].name}」`);
+            regexGroup.rules.push(...rules);
+            report.push(`正则「${fname}」${rules.length}条 → 已归入「${regexGroup.name}」`);
           } else report.push(`「${fname}」没有可用规则`);
         } else {
           report.push(`「${fname}」认不出类型，跳过`);
@@ -2307,6 +2362,16 @@ function exportPresetGroup(g) {
 
 // ============ 预设分组渲染 ============
 function renderPresetGroups() {
+  // 刷新"导入到分组"下拉（默认=新建分组，选中已有分组则定向导入）
+  const sel = $('presetTargetGroup');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = '';
+    sel.appendChild(el('option', { value: '' }, '＋ 导入为新分组'));
+    state.presetGroups.forEach((g) => sel.appendChild(el('option', { value: g.id }, `导入到「${g.name}」`)));
+    if (state.presetGroups.some((g) => g.id === prev)) sel.value = prev;
+  }
+
   const box = $('presetGroupList');
   box.innerHTML = '';
   if (!state.presetGroups.length) {
@@ -2315,7 +2380,7 @@ function renderPresetGroups() {
   }
   state.presetGroups.forEach((g) => {
     const card = el('div', { class: 'pg-card' });
-    // 组头：开关 + 名称 + 类型徽标 + 操作
+    // 组头：开关 + 名称 + 类型/条数徽标 + 操作
     const head = el('div', { class: 'pg-head' });
     const gcb = el('input', { type: 'checkbox', title: '整组开关' });
     gcb.checked = g.enabled !== false;
@@ -2336,12 +2401,12 @@ function renderPresetGroups() {
     });
     head.appendChild(gcb);
     head.appendChild(el('span', { class: 'pg-name' }, g.name));
-    head.appendChild(el('span', { class: 'pg-badge' }, PRESET_TYPE_LABEL[g.type] || '预设'));
+    head.appendChild(el('span', { class: 'pg-badge' }, `${PRESET_TYPE_LABEL[g.type] || '预设'}·${(g.items || []).length}条`));
     head.appendChild(addB);
     head.appendChild(expB);
     head.appendChild(delB);
     card.appendChild(head);
-    // 条目行
+    // 条目行（点名字直接进编辑器）
     (g.items || []).forEach((it, idx) => {
       const row = el('div', { class: 'preset-item' });
       const cb = el('input', { type: 'checkbox' });
@@ -2353,8 +2418,10 @@ function renderPresetGroups() {
       const delIt = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
       delIt.appendChild(icon('i-trash', 'icon-sm'));
       delIt.addEventListener('click', () => { g.items.splice(idx, 1); saveState(); renderPresetGroups(); });
+      const nameSpan = el('span', { class: 'preset-item-name', title: (it.content || '').slice(0, 300) }, it.name);
+      nameSpan.addEventListener('click', () => openPresetEditor(g, it));
       row.appendChild(cb);
-      row.appendChild(el('span', { class: 'preset-item-name', title: (it.content || '').slice(0, 300) }, it.name));
+      row.appendChild(nameSpan);
       row.appendChild(editB);
       row.appendChild(delIt);
       card.appendChild(row);
@@ -2438,14 +2505,16 @@ function renderRegexGroups() {
       const cb = el('input', { type: 'checkbox' });
       cb.checked = rule.enabled !== false;
       cb.addEventListener('change', () => { rule.enabled = cb.checked; saveState(); });
+      const nameSpan = el('span', { class: 'regex-item-name', title: rule.name || rule.pattern || '' }, rule.name || '未命名');
       const pat = el('input', { class: 'field-input', type: 'text', placeholder: '正则（如 宝贝）', value: rule.pattern || '' });
-      pat.addEventListener('change', () => { rule.pattern = pat.value; rule.name = pat.value; saveState(); });
+      pat.addEventListener('change', () => { rule.pattern = pat.value; if (!rule.name) rule.name = pat.value; saveState(); renderRegexGroups(); });
       const rep = el('input', { class: 'field-input', type: 'text', placeholder: '替换成（如 月月）', value: rule.replacement || '' });
       rep.addEventListener('change', () => { rule.replacement = rep.value; saveState(); });
       const delR = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
       delR.appendChild(icon('i-trash', 'icon-sm'));
       delR.addEventListener('click', () => { g.rules.splice(idx, 1); saveState(); renderRegexGroups(); });
       row.appendChild(cb);
+      row.appendChild(nameSpan);
       row.appendChild(pat);
       row.appendChild(rep);
       row.appendChild(delR);

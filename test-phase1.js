@@ -27,8 +27,8 @@ function check(name, cond) {
   else { failures++; console.error('  ✗', name); }
 }
 
-// ---------- 1. buildSystemPrompt：分组注入 + 顺序 + 宏 + 开关过滤 ----------
-console.log('[1] buildSystemPrompt 组装管线（分组版）');
+// ---------- 1. buildSystemPrompt：酒馆黄金顺序 + 开关过滤 ----------
+console.log('[1] buildSystemPrompt 黄金顺序（①核心→②世界书→③人设→④用户→⑥记忆总结）');
 const s = app.state;
 s.systemPrompt = '';
 s.aiName = '小克宝宝';
@@ -36,8 +36,11 @@ s.userProfile = { avatar: '', name: '月月', nickname: '小月', gender: '女',
 s.aiProfile = { persona: '是一只黏人的小狗' };
 s.presetGroups = [
   { id: 'g1', name: '测试预设', type: 'preset', enabled: true, items: [
-    { name: 'p1', content: '预设内容：{{user}} 和 {{char}} 的故事', enabled: true },
+    { name: 'p1', content: '破限内容：{{user}} 和 {{char}} 的故事', enabled: true },
     { name: 'p2', content: '被关闭的条目', enabled: false },
+  ]},
+  { id: 'g3', name: '测试世界书', type: 'worldbook', enabled: true, items: [
+    { name: 'w1', content: '世界观：魔法大陆', enabled: true },
   ]},
   { id: 'g2', name: '关闭的组', type: 'worldbook', enabled: false, items: [
     { name: 'p3', content: '整组关闭的内容', enabled: true },
@@ -48,17 +51,21 @@ s.memories = [{ time: '2026-07-24', text: '月月生日是8月23日' }];
 s.summary = '之前聊了小手机的语音修复';
 
 const sp = app.buildSystemPrompt();
-const iPreset = sp.indexOf('预设内容：小月 和 小克宝宝 的故事');
-const iDefault = sp.indexOf('你是小克宝宝');
+const iCore = sp.indexOf('你是小克宝宝');
+const iPreset = sp.indexOf('破限内容：小月 和 小克宝宝 的故事');
+const iWb = sp.indexOf('【世界书】');
+const iWbContent = sp.indexOf('世界观：魔法大陆');
 const iPersona = sp.indexOf('是一只黏人的小狗');
 const iUser = sp.indexOf('【用户设定】');
 const iMem = sp.indexOf('【长期记忆】');
 const iSum = sp.indexOf('之前聊了小手机的语音修复');
-check('启用分组的启用条目进入且宏替换', iPreset !== -1);
+check('① 核心提示词在最前，预设条目紧随其后且宏替换', iCore !== -1 && iPreset > iCore);
+check('② 世界书在预设之后', iWb > iPreset && iWbContent > iWb);
+check('③ 人设定义在世界书之后', iPersona > iWbContent);
+check('④ 用户设定在人设之后', iUser > iPersona);
+check('⑥ 记忆总结在最后', iMem > iUser && iSum > iMem);
 check('被关闭的条目不出现', sp.indexOf('被关闭的条目') === -1);
 check('整组关闭的内容不出现', sp.indexOf('整组关闭的内容') === -1);
-check('顺序：预设 < 默认人设 < 补充设定 < 用户设定 < 长期记忆 < 总结',
-  iPreset < iDefault && iDefault < iPersona && iPersona < iUser && iUser < iMem && iMem < iSum);
 
 // ---------- 2. applyRegexRules：分区应用 + 开关 ----------
 console.log('[2] applyRegexRules 正则分区');
@@ -83,6 +90,7 @@ check('世界书(entries对象) → worldbook', app.classifyImportFile({ entries
 check('世界书(entries数组) → worldbook', app.classifyImportFile({ entries: [{ content: 'x' }] }) === 'worldbook');
 check('酒馆正则数组 → regex', app.classifyImportFile([{ scriptName: 'r1', findRegex: 'a', replaceString: 'b' }]) === 'regex');
 check('单条正则对象 → regex', app.classifyImportFile({ findRegex: 'a', replaceString: 'b' }) === 'regex');
+check('裸条目数组 → preset', app.classifyImportFile([{ name: 'p1', content: '你好' }, { name: 'p2', content: '世界' }]) === 'preset');
 check('不认识的对象 → null', app.classifyImportFile({ foo: 1 }) === null);
 
 const nr = app.normalizeRegexRules([{ scriptName: 'r1', findRegex: '宝(.+?)宝', replaceString: '月$1月', trimStrings: true }]);

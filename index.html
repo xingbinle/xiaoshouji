@@ -533,6 +533,11 @@
           <span class="mp-menu-label">用户设定</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <button class="mp-menu-item" data-mp="debug">
+          <span class="mp-menu-emoji">🔍</span>
+          <span class="mp-menu-label">调试后台</span>
+          <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
+        </button>
         <div class="mp-version" id="mpVersion"></div>
       </div>
 
@@ -544,6 +549,7 @@
               <svg class="icon-sm"><use href="#i-import"/></svg>
               导入 JSON（可多选）
             </button>
+            <select id="presetTargetGroup" class="field-input regex-target" title="导入到分组"></select>
             <button class="btn-secondary" id="addPresetGroupBtn">
               <svg class="icon-sm"><use href="#i-plus"/></svg>
               新建分组
@@ -634,6 +640,14 @@
             <textarea id="userBio" class="field-input field-textarea" rows="5" placeholder="喜欢的东西、习惯、雷区…"></textarea>
           </label>
           <span class="field-hint">改完自动保存，会写进 system prompt 给 AI 看</span>
+        </div>
+      </div>
+
+      <!-- 调试后台：最近一次发给 API 的完整报文（酒馆黄金顺序可视化） -->
+      <div class="mp-page" id="mpPage-debug" hidden>
+        <div class="settings-group">
+          <span class="field-hint">顺序应为：① 核心提示词/破限 → ② 世界书 → ③ 角色卡 → ④ 用户设定 → ⑤ 聊天历史 → ⑥ 当前消息</span>
+          <pre id="debugPayload" class="debug-payload"></pre>
         </div>
       </div>
     </div>
