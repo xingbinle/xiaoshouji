@@ -114,6 +114,14 @@ let state = {
   modelList: [],
   wallet: { user: 1000, ai: 1000, initialized: true },
   transferLog: [],
+  // ===== 第一期：预设 / AI角色 / 用户设定 / 滚动总结 =====
+  userProfile: { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' },
+  aiProfile: { persona: '' },
+  preset: { name: '', prompts: [] },
+  regexRules: [],
+  summary: '',
+  memories: [],
+  summaryBoundary: 0,
 };
 
 // ============ 加密（简单 XOR + Base64，给浏览器本地存 key 用） ============
@@ -150,6 +158,13 @@ function saveState() {
     apiKey: _obf(state.apiKey),
     messages: state.messages.slice(-200),
     theme: state.theme,
+    userProfile: state.userProfile,
+    aiProfile: state.aiProfile,
+    preset: state.preset,
+    regexRules: state.regexRules,
+    summary: state.summary,
+    memories: (state.memories || []).slice(-50),
+    summaryBoundary: state.summaryBoundary,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
 }
@@ -161,6 +176,14 @@ function loadState() {
     const data = JSON.parse(raw);
     Object.assign(state, data);
     state.apiKey = _deobf(data.apiKey || '');
+    // 第一期字段兜底（旧存档没有这些 key）
+    state.userProfile = state.userProfile || { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
+    state.aiProfile = state.aiProfile || { persona: '' };
+    state.preset = state.preset || { name: '', prompts: [] };
+    state.regexRules = state.regexRules || [];
+    state.summary = state.summary || '';
+    state.memories = state.memories || [];
+    state.summaryBoundary = state.summaryBoundary || 0;
   } catch (e) {
     console.warn('加载存储失败：', e);
   }
@@ -358,7 +381,11 @@ function renderMessages() {
 function buildRedpacketNode(msg, idx) {
   const wrapper = el('div', { class: `message ${msg.role}`, 'data-idx': idx });
   const avatar = el('div', { class: 'avatar' });
-  if (msg.role === 'user') avatar.textContent = '月';
+  if (msg.role === 'user') {
+    if (state.userProfile && state.userProfile.avatar) {
+      avatar.appendChild(el('img', { class: 'avatar-img', src: state.userProfile.avatar, alt: '我' }));
+    } else avatar.textContent = '月';
+  }
   else { avatar.appendChild(icon('i-paw', 'icon')); avatar.style.color = 'var(--sky-deep)'; }
 
   const isReceived = msg.status === 'received';
@@ -437,7 +464,11 @@ function buildMessageNode(msg, idx) {
   // 头像
   const avatar = el('div', { class: 'avatar' });
   if (msg.role === 'user') {
-    avatar.textContent = '月';
+    if (state.userProfile && state.userProfile.avatar) {
+      avatar.appendChild(el('img', { class: 'avatar-img', src: state.userProfile.avatar, alt: '我' }));
+    } else {
+      avatar.textContent = '月';
+    }
   } else {
     avatar.appendChild(icon('i-paw', 'icon'));
     avatar.style.color = 'var(--sky-deep)';
@@ -702,8 +733,10 @@ function buildArtifact(code) {
 // ============ API 调用 ============
 let currentAbortController = null;
 
-async function callAPI(messages, model, tools = null) {
-  const systemPrompt = state.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+// opts.system 覆盖 system prompt（滚动总结用）；opts.maxTokens 覆盖上限；
+// opts.background=true 时不占用 currentAbortController（后台静默调用，停止按钮不误伤）
+async function callAPI(messages, model, tools = null, opts = {}) {
+  const systemPrompt = opts.system || buildSystemPrompt();
 
   let endpoint, headers, bodyObj;
   if (state.workerUrl) {
@@ -713,7 +746,7 @@ async function callAPI(messages, model, tools = null) {
       model,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
-      max_tokens: state.maxTokens,
+      max_tokens: opts.maxTokens || state.maxTokens,
       stream: false,
     };
   } else {
@@ -729,7 +762,7 @@ async function callAPI(messages, model, tools = null) {
       model,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: state.temperature,
-      max_tokens: state.maxTokens,
+      max_tokens: opts.maxTokens || state.maxTokens,
       stream: false,
     };
   }
@@ -742,14 +775,15 @@ async function callAPI(messages, model, tools = null) {
 
   const body = JSON.stringify(bodyObj);
 
-  // 创建 AbortController 让停止按钮能中断
-  currentAbortController = new AbortController();
+  // 创建 AbortController 让停止按钮能中断（后台调用不占用，免误伤）
+  const controller = new AbortController();
+  if (!opts.background) currentAbortController = controller;
 
   const resp = await fetch(endpoint, {
     method: 'POST',
     headers,
     body,
-    signal: currentAbortController.signal,
+    signal: controller.signal,
   });
 
   if (!resp.ok) {
@@ -921,6 +955,132 @@ function serializeMessagesForAPI(messages) {
   return apiMessages;
 }
 
+// ============ system prompt 组装管线（第一期） ============
+// 固定顺序：预设 → AI设定 → 用户设定 → 表情清单（二期）→ 记忆总结
+// 稳定内容在前、易变内容在后，利于 API 缓存命中
+function buildSystemPrompt() {
+  const u = state.userProfile || {};
+  const macro = (s) => s
+    .replace(/\{\{\s*user\s*\}\}/gi, u.nickname || u.name || '月月')
+    .replace(/\{\{\s*char\s*\}\}/gi, state.aiName);
+  const parts = [];
+
+  // 1. 预设（酒馆 JSON 导入，勾选的条目）
+  if (state.preset && state.preset.prompts && state.preset.prompts.length) {
+    const enabled = state.preset.prompts.filter(p => p.enabled !== false && p.content && p.content.trim());
+    if (enabled.length) parts.push(enabled.map(p => macro(p.content.trim())).join('\n\n'));
+  }
+
+  // 2. AI 角色设定（默认人设 / 高级自定义 + 人设补充）
+  let aiPart = (state.systemPrompt && state.systemPrompt.trim()) ? state.systemPrompt : DEFAULT_SYSTEM_PROMPT;
+  if (state.aiProfile && state.aiProfile.persona && state.aiProfile.persona.trim()) {
+    aiPart += `\n\n【${state.aiName} 的补充设定】\n${macro(state.aiProfile.persona.trim())}`;
+  }
+  parts.push(aiPart);
+
+  // 3. 用户设定
+  const uLines = [];
+  if (u.name) uLines.push(`名字：${u.name}`);
+  if (u.nickname) uLines.push(`昵称：${u.nickname}（平时这样称呼她）`);
+  if (u.gender) uLines.push(`性别：${u.gender}`);
+  if (u.birthday) uLines.push(`生日：${u.birthday}`);
+  if (u.bio) uLines.push(`关于她：${u.bio}`);
+  if (uLines.length) parts.push(`【用户设定】\n${uLines.join('\n')}`);
+
+  // 4. 表情清单（第二期填充，位置预留）
+
+  // 5. 记忆总结（易变，放最后）
+  const memParts = [];
+  if (state.memories && state.memories.length) {
+    memParts.push('【长期记忆】\n' + state.memories.map(m => `- [${m.time}] ${m.text}`).join('\n'));
+  }
+  if (state.summary && state.summary.trim()) {
+    memParts.push(`【之前聊天的总结】\n${state.summary.trim()}`);
+  }
+  if (memParts.length) parts.push(memParts.join('\n\n'));
+
+  return parts.join('\n\n');
+}
+
+// ============ 正则替换（作用于 AI 输出，第一期先只改文本展示） ============
+function applyRegexRules(text) {
+  if (!text || !state.regexRules || !state.regexRules.length) return text;
+  let out = text;
+  for (const r of state.regexRules) {
+    if (!r || r.enabled === false || !r.pattern) continue;
+    try {
+      out = out.replace(new RegExp(r.pattern, 'g'), r.replacement ?? '');
+    } catch (e) { /* 规则写错就跳过，不影响聊天 */ }
+  }
+  return out;
+}
+
+// ============ 滚动总结（每 30 条后台静默总结 + 长期记忆提取） ============
+const SUMMARY_CHUNK = 30;
+const SUMMARY_SYSTEM_PROMPT = `你是聊天记录整理助手。把"新聊天记录"合并进"上次的总结"，输出压缩后的新总结，并提取值得长期记住的事实。
+要求：
+- 总结用第三人称，保留关键事件、约定、情绪变化、重要日期，150字以内
+- 长期记忆只收稳定事实（喜好、生日、约定、重要决定），每条一句话，最多3条，没有就给空数组
+- 只输出 JSON：{"summary":"新总结","memories":["记忆1","记忆2"]}`;
+
+async function maybeRollSummary() {
+  if (state._summarizing) return;
+  if (state.summaryBoundary > state.messages.length) {
+    // 用户删消息删回了已总结区域，边界钳位
+    state.summaryBoundary = Math.max(0, state.messages.length - SUMMARY_CHUNK);
+  }
+  if (state.messages.length - state.summaryBoundary < SUMMARY_CHUNK) return;
+  if (!state.primaryModel || (!state.apiKey && !state.workerUrl)) return;
+
+  state._summarizing = true;
+  try {
+    const chunk = state.messages.slice(state.summaryBoundary, state.summaryBoundary + SUMMARY_CHUNK);
+    const chunkText = JSON.stringify(serializeMessagesForAPI(chunk));
+    const userContent =
+      `【上次的总结】\n${state.summary || '（无）'}\n\n` +
+      `【新聊天记录】\n${chunkText}\n\n` +
+      `请输出 JSON：{"summary":"合并后的新总结","memories":["新增长期记忆，没有就空数组"]}`;
+
+    let msg;
+    const opts = { system: SUMMARY_SYSTEM_PROMPT, maxTokens: 1500, background: true };
+    try {
+      msg = await callAPI([{ role: 'user', content: userContent }], state.primaryModel, null, opts);
+    } catch (e) {
+      if (state.fallbackModel) {
+        msg = await callAPI([{ role: 'user', content: userContent }], state.fallbackModel, null, opts);
+      } else {
+        throw e;
+      }
+    }
+
+    const raw = msg.content || '';
+    let newSummary = '';
+    let newMemories = [];
+    for (const cand of extractJSONCandidates(raw)) {
+      const p = tryParseJSON(cand);
+      if (p && typeof p.summary === 'string') {
+        newSummary = p.summary;
+        if (Array.isArray(p.memories)) {
+          newMemories = p.memories.filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
+        }
+        break;
+      }
+    }
+    if (!newSummary) newSummary = raw.slice(0, 2000); // 模型没按格式来，原文兜底
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    newMemories.forEach(t => state.memories.push({ time: stamp, text: t.trim() }));
+    state.memories = state.memories.slice(-50);
+    state.summary = newSummary;
+    state.summaryBoundary += SUMMARY_CHUNK;
+    saveState();
+  } catch (e) {
+    console.warn('滚动总结失败（下次聊天时再试）:', e);
+  } finally {
+    state._summarizing = false;
+  }
+}
+
 // ============ 点 🛩️ 触发 AI ============
 async function sendMessage() {
   // 先把当前输入框内容也加进去
@@ -942,7 +1102,13 @@ async function sendMessage() {
   syncLoadingBubble();
 
   try {
-    const apiMessages = serializeMessagesForAPI(state.messages);
+    // ★ 滚动总结：总结边界之前的消息已压缩进 system prompt，只发边界之后的
+    const startIdx = Math.min(state.summaryBoundary || 0, state.messages.length);
+    let apiMessages = serializeMessagesForAPI(state.messages.slice(startIdx));
+    if (!apiMessages.length && state.messages.length) {
+      // 兜底：边界外没东西了（比如重生成撞边界），至少带最近几条
+      apiMessages = serializeMessagesForAPI(state.messages.slice(-10));
+    }
 
     // ★ M2: 注入待领取红包信息，让 AI 知道可以领
     const pendingUserRPs = state.messages.filter(m =>
@@ -1019,6 +1185,8 @@ async function sendMessage() {
         delete msg._direct;
         state.messages.push(msg);
       } else {
+        // 预设正则：作用于 AI 输出文本
+        if (msg.text) msg.text = applyRegexRules(msg.text);
         state.messages.push({ role: 'ai', ...msg });
       }
     });
@@ -1030,6 +1198,9 @@ async function sendMessage() {
 
     saveState();
     renderMessages();
+
+    // ★ 滚动总结：够 30 条就在后台悄悄总结（fire-and-forget，不挡聊天）
+    maybeRollSummary();
   } catch (e) {
     if (e.name !== 'AbortError') {
       state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
@@ -1466,6 +1637,10 @@ function importChats(file) {
       const data = JSON.parse(e.target.result);
       if (Array.isArray(data)) {
         state.messages = data;
+        // 换了一批消息，旧总结/边界作废
+        state.summary = '';
+        state.memories = [];
+        state.summaryBoundary = 0;
         saveState();
         renderMessages();
         alert(`成功导入 ${data.length} 条消息`);
@@ -1482,6 +1657,10 @@ function importChats(file) {
 function clearChats() {
   if (!confirm('确定要清空所有会话吗？此操作不可恢复')) return;
   state.messages = [];
+  // 总结和长期记忆也一起清零，从头开始
+  state.summary = '';
+  state.memories = [];
+  state.summaryBoundary = 0;
   saveState();
   renderMessages();
 }
@@ -1865,6 +2044,169 @@ function handleSticker() {
   toast('表情包库 v0.2 上线，敬请期待');
 }
 
+// ============ 第一期：小手机菜单 + 三件套面板 ============
+function toggleBrandMenu(force) {
+  const menu = $('brandMenu');
+  const isShow = force !== undefined ? force : menu.hidden;
+  menu.hidden = !isShow;
+}
+
+function openRolePanel(tab) {
+  toggleBrandMenu(false);
+  loadRolePanel();
+  switchRoleTab(tab || 'preset');
+  $('rolePanel').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeRolePanel() {
+  $('rolePanel').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function switchRoleTab(tab) {
+  document.querySelectorAll('.role-tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  ['preset', 'ai', 'user'].forEach((t) => {
+    $('roleTab-' + t).hidden = (t !== tab);
+  });
+}
+
+function loadRolePanel() {
+  // 用户设定
+  const u = state.userProfile || {};
+  $('userAvatarPreview').innerHTML = u.avatar ? `<img src="${u.avatar}" alt="头像">` : '🌙';
+  $('userName').value = u.name || '';
+  $('userNickname').value = u.nickname || '';
+  $('userGender').value = u.gender || '';
+  $('userBirthday').value = u.birthday || '';
+  $('userBio').value = u.bio || '';
+  // AI 设定
+  $('aiNameRole').value = state.aiName || '';
+  $('aiPersona').value = (state.aiProfile && state.aiProfile.persona) || '';
+  // 预设
+  renderPresetList();
+  renderRegexList();
+}
+
+function saveUserProfile() {
+  state.userProfile = {
+    avatar: (state.userProfile && state.userProfile.avatar) || '',
+    name: $('userName').value.trim(),
+    nickname: $('userNickname').value.trim(),
+    gender: $('userGender').value,
+    birthday: $('userBirthday').value,
+    bio: $('userBio').value.trim(),
+  };
+  saveState();
+  renderMessages(); // 头像/称呼可能变了
+  toast('已保存 ✓');
+}
+
+function handleAvatarUpload(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      // 压成 96x96 居中裁剪，localStorage 无压力
+      const size = 96;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      canvas.getContext('2d').drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      state.userProfile.avatar = canvas.toDataURL('image/jpeg', 0.85);
+      $('userAvatarPreview').innerHTML = `<img src="${state.userProfile.avatar}" alt="头像">`;
+      saveState();
+      renderMessages();
+      toast('头像已更新 ✓');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============ 预设：酒馆 JSON 导入 ============
+function importPresetFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let data;
+    try {
+      data = JSON.parse(e.target.result);
+    } catch (err) {
+      alert('JSON 解析失败：' + err.message);
+      return;
+    }
+    if (!data || !Array.isArray(data.prompts)) {
+      alert('不像酒馆预设格式哦（没找到 prompts 数组）');
+      return;
+    }
+    const prompts = data.prompts
+      .filter((p) => p && typeof p.content === 'string' && p.content.trim())
+      .map((p) => ({
+        name: String(p.name || '未命名'),
+        content: p.content,
+        enabled: p.enabled !== false,
+      }));
+    if (!prompts.length) {
+      alert('预设里没有可用的提示词条目');
+      return;
+    }
+    state.preset = { name: file.name.replace(/\.json$/i, ''), prompts };
+    saveState();
+    renderPresetList();
+    toast(`已导入 ${prompts.length} 条预设提示词 ✓`);
+  };
+  reader.readAsText(file);
+}
+
+function renderPresetList() {
+  const box = $('presetPromptList');
+  box.innerHTML = '';
+  const p = state.preset;
+  $('presetNameLabel').textContent = p && p.name ? `当前预设：${p.name}` : '未导入预设';
+  if (!p || !p.prompts || !p.prompts.length) {
+    box.appendChild(el('div', { class: 'role-empty' }, '还没有预设～点上面按钮导入酒馆 JSON'));
+    return;
+  }
+  p.prompts.forEach((item, idx) => {
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = item.enabled !== false;
+    cb.addEventListener('change', () => { item.enabled = cb.checked; saveState(); });
+    const nameSpan = el('span', { class: 'preset-item-name', title: item.content.slice(0, 500) }, item.name);
+    const del = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
+    del.appendChild(icon('i-trash', 'icon-sm'));
+    del.addEventListener('click', () => { p.prompts.splice(idx, 1); saveState(); renderPresetList(); });
+    box.appendChild(el('div', { class: 'preset-item' }, cb, nameSpan, del));
+  });
+}
+
+// ============ 正则替换规则列表 ============
+function renderRegexList() {
+  const box = $('regexRuleList');
+  box.innerHTML = '';
+  if (!state.regexRules.length) {
+    box.appendChild(el('div', { class: 'role-empty' }, '还没有规则～例如把「宝贝」替换成「月月」'));
+  }
+  state.regexRules.forEach((rule, idx) => {
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = rule.enabled !== false;
+    cb.addEventListener('change', () => { rule.enabled = cb.checked; saveState(); });
+    const pat = el('input', { class: 'field-input', type: 'text', placeholder: '正则（如 宝贝）', value: rule.pattern || '' });
+    pat.addEventListener('change', () => { rule.pattern = pat.value; saveState(); });
+    const rep = el('input', { class: 'field-input', type: 'text', placeholder: '替换成（如 月月）', value: rule.replacement || '' });
+    rep.addEventListener('change', () => { rule.replacement = rep.value; saveState(); });
+    const del = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
+    del.appendChild(icon('i-trash', 'icon-sm'));
+    del.addEventListener('click', () => { state.regexRules.splice(idx, 1); saveState(); renderRegexList(); });
+    box.appendChild(el('div', { class: 'regex-item' }, cb, pat, rep, del));
+  });
+}
+
 // ============ 初始化 ============
 function init() {
   loadState();
@@ -1900,6 +2242,63 @@ function init() {
   $('fetchModelsBtn').addEventListener('click', fetchModelList);
   // 底部"完成"按钮：关闭设置面板（设置已通过保存按钮持久化）
   $('closeSettingsBottom').addEventListener('click', closeSettings);
+
+  // ===== 第一期：小手机菜单（左上角品牌区） =====
+  $('brandBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleBrandMenu();
+  });
+  document.addEventListener('click', (e) => {
+    const menu = $('brandMenu');
+    if (!menu.hidden && !menu.contains(e.target) && !e.target.closest('#brandBtn')) {
+      toggleBrandMenu(false);
+    }
+  });
+  document.querySelectorAll('.brand-menu-item').forEach((btn) => {
+    btn.addEventListener('click', () => openRolePanel(btn.dataset.rtab));
+  });
+  $('closeRole').addEventListener('click', closeRolePanel);
+  $('roleMask').addEventListener('click', closeRolePanel);
+  document.querySelectorAll('.role-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchRoleTab(btn.dataset.tab));
+  });
+
+  // 用户设定（改完自动保存）
+  $('avatarUploadBtn').addEventListener('click', () => $('avatarInput').click());
+  $('avatarInput').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) handleAvatarUpload(f);
+    e.target.value = '';
+  });
+  ['userName', 'userNickname', 'userGender', 'userBirthday', 'userBio'].forEach((id) => {
+    $(id).addEventListener('change', saveUserProfile);
+  });
+
+  // AI 角色设定
+  $('aiNameRole').addEventListener('change', () => {
+    state.aiName = $('aiNameRole').value.trim() || '小克宝宝';
+    saveState();
+    updateStatus();
+    toast('已保存 ✓');
+  });
+  $('aiPersona').addEventListener('change', () => {
+    state.aiProfile.persona = $('aiPersona').value;
+    saveState();
+    toast('已保存 ✓');
+  });
+
+  // 预设导入 + 正则规则
+  $('importPresetBtn').addEventListener('click', () => $('presetInput').click());
+  $('presetInput').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) importPresetFile(f);
+    e.target.value = '';
+  });
+  $('addRegexBtn').addEventListener('click', () => {
+    state.regexRules.push({ pattern: '', replacement: '', enabled: true });
+    saveState();
+    renderRegexList();
+  });
 
   // 切换显示密码
   let keyVisible = false;

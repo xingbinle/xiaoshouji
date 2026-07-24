@@ -225,7 +225,7 @@
 
   <!-- 顶部栏 -->
   <header class="topbar">
-    <div class="brand">
+    <div class="brand" id="brandBtn" role="button" tabindex="0" aria-label="小手机菜单">
       <div class="brand-glyph" aria-hidden="true">
         <svg class="icon"><use href="#i-phone"/></svg>
       </div>
@@ -233,6 +233,12 @@
         <h1 class="brand-title">Kiki</h1>
         <span class="brand-sub" id="statusSub">未连接</span>
       </div>
+    </div>
+    <!-- 左上角小手机菜单（第一期：预设/AI角色/用户设定） -->
+    <div class="brand-menu" id="brandMenu" hidden>
+      <button class="brand-menu-item" data-rtab="preset">📋 预设</button>
+      <button class="brand-menu-item" data-rtab="ai">🐾 AI 角色设定</button>
+      <button class="brand-menu-item" data-rtab="user">🌙 用户设定</button>
     </div>
     <button class="icon-btn" id="settingsBtn" aria-label="设置">
       <svg class="icon"><use href="#i-gear"/></svg>
@@ -332,6 +338,8 @@
     </div>
 
     <input type="file" id="imageInput" accept="image/*" hidden>
+    <input type="file" id="avatarInput" accept="image/*" hidden>
+    <input type="file" id="presetInput" accept=".json,application/json" hidden>
   </footer>
 
   <!-- 设置面板 -->
@@ -487,6 +495,108 @@
             完成
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 小手机面板（预设 / AI角色 / 用户设定） -->
+  <div class="settings-panel" id="rolePanel" hidden>
+    <div class="settings-mask" id="roleMask"></div>
+    <div class="settings-content">
+      <div class="settings-header">
+        <h2>
+          <svg class="icon"><use href="#i-phone"/></svg>
+          小手机
+        </h2>
+        <button class="close-btn" id="closeRole" aria-label="关闭">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="role-tabs">
+        <button class="role-tab active" data-tab="preset">预设</button>
+        <button class="role-tab" data-tab="ai">AI 角色</button>
+        <button class="role-tab" data-tab="user">用户设定</button>
+      </div>
+      <div class="settings-body">
+        <!-- 预设 -->
+        <section id="roleTab-preset">
+          <div class="settings-group">
+            <h3 class="settings-group-title">📋 预设（酒馆 JSON）</h3>
+            <div class="button-row">
+              <button class="btn-secondary" id="importPresetBtn">
+                <svg class="icon-sm"><use href="#i-import"/></svg>
+                导入酒馆预设 JSON
+              </button>
+            </div>
+            <div class="field-hint" id="presetNameLabel">未导入预设</div>
+            <div id="presetPromptList" class="preset-list"></div>
+          </div>
+          <div class="settings-group">
+            <h3 class="settings-group-title">✂️ 正则替换（作用于 AI 输出）</h3>
+            <div id="regexRuleList" class="regex-list"></div>
+            <div class="button-row">
+              <button class="btn-secondary" id="addRegexBtn">
+                <svg class="icon-sm"><use href="#i-plus"/></svg>
+                添加规则
+              </button>
+            </div>
+            <span class="field-hint">按顺序逐条替换 AI 回复文本，支持 $1 捕获组；写错的规则会自动跳过</span>
+          </div>
+        </section>
+        <!-- AI 角色 -->
+        <section id="roleTab-ai" hidden>
+          <div class="settings-group">
+            <h3 class="settings-group-title">🐾 AI 角色设定</h3>
+            <label class="field">
+              <span class="field-label">AI 名字</span>
+              <input type="text" id="aiNameRole" class="field-input" placeholder="小克宝宝">
+            </label>
+            <label class="field">
+              <span class="field-label">角色设定（人设补充）</span>
+              <textarea id="aiPersona" class="field-input field-textarea" rows="8" placeholder="补充 TA 的性格、口癖、和月月的关系设定…"></textarea>
+              <span class="field-hint">追加在默认人设之后；留空就是原味小克宝宝</span>
+            </label>
+          </div>
+        </section>
+        <!-- 用户设定 -->
+        <section id="roleTab-user" hidden>
+          <div class="settings-group">
+            <h3 class="settings-group-title">🌙 用户设定</h3>
+            <div class="avatar-row">
+              <div class="avatar-preview" id="userAvatarPreview">🌙</div>
+              <button class="btn-secondary" id="avatarUploadBtn">
+                <svg class="icon-sm"><use href="#i-image"/></svg>
+                上传头像
+              </button>
+            </div>
+            <label class="field">
+              <span class="field-label">名字</span>
+              <input type="text" id="userName" class="field-input" placeholder="月月">
+            </label>
+            <label class="field">
+              <span class="field-label">昵称（AI 平时怎么叫你）</span>
+              <input type="text" id="userNickname" class="field-input" placeholder="月月">
+            </label>
+            <label class="field">
+              <span class="field-label">性别</span>
+              <select id="userGender" class="field-input">
+                <option value="">不告诉 TA</option>
+                <option value="女">女</option>
+                <option value="男">男</option>
+                <option value="其他">其他</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">生日</span>
+              <input type="date" id="userBirthday" class="field-input">
+            </label>
+            <label class="field">
+              <span class="field-label">个性化（关于你的补充）</span>
+              <textarea id="userBio" class="field-input field-textarea" rows="5" placeholder="喜欢的东西、习惯、雷区…"></textarea>
+            </label>
+            <span class="field-hint">改完自动保存，会写进 system prompt 给 AI 看</span>
+          </div>
+        </section>
       </div>
     </div>
   </div>
