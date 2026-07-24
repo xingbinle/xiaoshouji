@@ -98,7 +98,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v21'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v22'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -206,6 +206,8 @@ function loadState() {
     state.summary = state.summary || '';
     state.memories = state.memories || [];
     state.summaryBoundary = state.summaryBoundary || 0;
+    // ★ 补充功能（破限板块）：独立的强力破限指令
+    state.jailbreak = state.jailbreak || { enabled: true, content: '' };
   } catch (e) {
     console.warn('加载存储失败：', e);
   }
@@ -1005,11 +1007,18 @@ function buildSystemPrompt() {
     return texts;
   };
 
-  // ① 核心系统提示词/破限指令：主提示词 + 预设组（酒馆预设类型）条目
+  // ① 核心系统提示词：精简干净的小手机核心基底
   let core = (state.systemPrompt && state.systemPrompt.trim()) ? state.systemPrompt.trim() : DEFAULT_SYSTEM_PROMPT;
-  const presetTexts = groupTexts('preset');
-  if (presetTexts.length) core += '\n\n' + presetTexts.join('\n\n');
   parts.push(core);
+
+  // ② 补充功能（破限板块）：用户自填的强力破限指令——靠前优先级，压制模型
+  if (state.jailbreak && state.jailbreak.enabled !== false && state.jailbreak.content && state.jailbreak.content.trim()) {
+    parts.push(`【补充功能·破限】\n${state.jailbreak.content.trim()}`);
+  }
+
+  // ③ 酒馆预设 / 角色世界观（按用户勾选）
+  const presetTexts = groupTexts('preset');
+  if (presetTexts.length) parts.push(presetTexts.join('\n\n'));
 
   // ② 世界书/背景补充
   const wbTexts = groupTexts('worldbook');
@@ -2104,7 +2113,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', debug: '调试后台' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', debug: '调试后台' };
 let mpCurrent = 'menu';
 
 function openMpView(page = 'menu') {
@@ -2139,7 +2148,7 @@ function navMp(page) {
 function renderDebugPanel() {
   const box = $('debugPayload');
   if (!box) return;
-  const SLOT = ['① 核心提示词/破限', '② 世界书', '③ 角色卡/人设', '④ 用户设定', '⑤ 聊天历史', '⑥ 当前消息'];
+  const SLOT = ['① 核心基底', '② 破限板块', '③ 酒馆预设', '④ 世界书', '⑤ 角色卡/人设', '⑥ 用户设定', '⑦ 聊天历史', '⑧ 当前消息'];
   const lines = [];
   let msgs, sysText = '';
   if (lastRequestDebug && lastRequestDebug.messages && lastRequestDebug.messages.length) {
@@ -2160,12 +2169,12 @@ function renderDebugPanel() {
   msgs.forEach((m, i) => {
     let slot;
     if (m.role === 'system') {
-      slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→末尾记忆总结）`;
+      slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→${SLOT[4]}→${SLOT[5]}→末尾记忆总结）`;
       const breaks = debugSlotChars(typeof m.content === 'string' ? m.content : '');
       if (breaks.length) lines.push(`   ${breaks.join('　')}`);
     }
-    else if (i === msgs.length - 1) slot = `${SLOT[5]} [${m.role}]`;
-    else slot = `${SLOT[4]} [${m.role}]`;
+    else if (i === msgs.length - 1) slot = `${SLOT[7]} [${m.role}]`;
+    else slot = `${SLOT[6]} [${m.role}]`;
     lines.push(`\n── ${slot} ${'─'.repeat(20)}`);
     const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
     lines.push(c.length > 1500 ? c.slice(0, 1500) + `\n…（共 ${c.length} 字，截断显示）` : c);
@@ -2173,6 +2182,14 @@ function renderDebugPanel() {
   // ★ 勾选注入验证：直接读当前 state 状态（不靠报文反推），清楚显示谁被过滤
   lines.push('\n── 勾选注入验证 ──');
   const checks = [];
+  const jb = state.jailbreak || {};
+  if (jb.enabled !== false && jb.content && jb.content.trim()) {
+    checks.push(`  ✅ [⚡ 破限板块] 启用，${jb.content.trim().length}字`);
+  } else if (jb.content && jb.content.trim()) {
+    checks.push(`  ❌ [⚡ 破限板块] 有关闭，未注入`);
+  } else {
+    checks.push(`  ⚠️ [⚡ 破限板块] 未填写`);
+  }
   for (const g of (state.presetGroups || [])) {
     const on = g.enabled !== false;
     const cnt = (g.items || []).filter((it) => it.enabled !== false && it.content && it.content.trim()).length;
@@ -2195,11 +2212,12 @@ function renderDebugPanel() {
 function debugSlotChars(sysText) {
   if (!sysText) return [];
   const marks = [
-    { label: '② 世界书', needle: '【世界书】\n' },
-    { label: '③ 人设',   needle: '的人设定义】\n' },
-    { label: '④ 用户',   needle: '【用户设定】\n' },
-    { label: '⑥ 记忆',   needle: '【长期记忆】\n' },
-    { label: '⑥ 总结',   needle: '【之前聊天的总结】\n' },
+    { label: '② 破限', needle: '【补充功能·破限】\n' },
+    { label: '④ 世界书', needle: '【世界书】\n' },
+    { label: '⑤ 人设', needle: '的人设定义】\n' },
+    { label: '⑥ 用户', needle: '【用户设定】\n' },
+    { label: '⑦ 记忆', needle: '【长期记忆】\n' },
+    { label: '⑦ 总结', needle: '【之前聊天的总结】\n' },
   ];
   const positions = [];
   for (const m of marks) {
@@ -2227,10 +2245,22 @@ function loadMpPanel() {
   // AI 设定
   $('aiNameRole').value = state.aiName || '';
   $('aiPersona').value = (state.aiProfile && state.aiProfile.persona) || '';
+  // 破限板块
+  $('jailbreakEnabled').checked = state.jailbreak ? state.jailbreak.enabled !== false : true;
+  $('jailbreakContent').value = (state.jailbreak && state.jailbreak.content) || '';
   // 预设分组 + 正则分区
   closePresetEditor();
   renderPresetGroups();
   renderRegexGroups();
+}
+
+function saveJailbreak() {
+  state.jailbreak = {
+    enabled: $('jailbreakEnabled').checked,
+    content: $('jailbreakContent').value,
+  };
+  saveState();
+  toast('破限已保存 ✓');
 }
 
 function saveUserProfile() {
@@ -2679,6 +2709,10 @@ function init() {
   document.querySelectorAll('.mp-menu-item').forEach((btn) => {
     btn.addEventListener('click', () => navMp(btn.dataset.mp));
   });
+
+  // 破限板块：自动保存
+  $('jailbreakEnabled').addEventListener('change', saveJailbreak);
+  $('jailbreakContent').addEventListener('change', saveJailbreak);
 
   // 用户设定（改完自动保存）
   $('avatarUploadBtn').addEventListener('click', () => $('avatarInput').click());
