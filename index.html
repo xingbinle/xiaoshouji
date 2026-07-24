@@ -331,10 +331,17 @@
       </div>
     </div>
 
+    <!-- 表情选择面板（第二期：月月自己也能发表情包） -->
+    <div class="stk-picker" id="stkPicker" hidden>
+      <div class="stk-picker-grid" id="stkPickerGrid"></div>
+    </div>
+
     <input type="file" id="imageInput" accept="image/*" hidden>
     <input type="file" id="avatarInput" accept="image/*" hidden>
     <input type="file" id="presetInput" accept=".json,application/json" multiple hidden>
     <input type="file" id="regexInput" accept=".json,application/json" multiple hidden>
+    <input type="file" id="stkFileInput" accept=".txt,.docx" multiple hidden>
+    <input type="file" id="stkImgInput" accept="image/*" multiple hidden>
   </footer>
 
   <!-- 设置面板 -->
@@ -538,6 +545,11 @@
           <span class="mp-menu-label">用户设定</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <button class="mp-menu-item" data-mp="sticker">
+          <span class="mp-menu-emoji">😀</span>
+          <span class="mp-menu-label">表情包</span>
+          <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
+        </button>
         <button class="mp-menu-item" data-mp="debug">
           <span class="mp-menu-emoji">🔍</span>
           <span class="mp-menu-label">调试后台</span>
@@ -633,6 +645,10 @@
             <span class="field-hint">追加在默认人设之后；留空就是原味小克宝宝</span>
           </label>
           <label class="field">
+            <span class="field-label">拍一拍后缀（TA 拍你时显示）</span>
+            <input type="text" id="aiPatSuffix" class="field-input" placeholder="的肩膀" maxlength="20">
+          </label>
+          <label class="field">
             <span class="field-label">预设内容（专属常驻微调）</span>
             <input type="checkbox" id="aiPresetEnabled" checked>
             <span class="field-hint" style="display:inline;margin-left:8px;">启用后立即注入</span>
@@ -679,7 +695,39 @@
             <span class="field-label">个性化（关于你的补充）</span>
             <textarea id="userBio" class="field-input field-textarea" rows="5" placeholder="喜欢的东西、习惯、雷区…"></textarea>
           </label>
+          <label class="field">
+            <span class="field-label">拍一拍后缀（你拍 TA 时显示）</span>
+            <input type="text" id="userPatSuffix" class="field-input" placeholder="的小脑袋" maxlength="20">
+          </label>
           <span class="field-hint">改完自动保存，会写进 system prompt 给 AI 看</span>
+        </div>
+      </div>
+
+      <!-- 表情包管理（第二期：URL 清单导入 + 本地上传 IndexedDB） -->
+      <div class="mp-page" id="mpPage-sticker" hidden>
+        <div class="settings-group">
+          <div class="button-row">
+            <button class="btn-secondary" id="stkImportBtn">
+              <svg class="icon-sm"><use href="#i-import"/></svg>
+              导入清单
+            </button>
+            <button class="btn-secondary" id="stkUploadBtn">
+              <svg class="icon-sm"><use href="#i-image"/></svg>
+              上传图片
+            </button>
+          </div>
+          <span class="field-hint">txt 每行「名字：URL」；docx 每行「URL 名字」。上传的图片存在浏览器本地，清缓存会丢哦。AI 靠备注名认图，只有勾选的分类/表情才会给它用。</span>
+          <div id="stkList"></div>
+          <!-- 加入面板：逐张确认备注名 + 选分类（导入/上传共用） -->
+          <div class="pe-editor" id="stkAddPanel" hidden>
+            <div class="field-hint">逐张确认备注名（AI 靠名字认图），填个分类后加入</div>
+            <div id="stkAddRows"></div>
+            <input type="text" id="stkAddCat" class="field-input" placeholder="分类名（如：日常）" maxlength="20" value="日常">
+            <div class="button-row">
+              <button class="btn-secondary" id="stkAddCancel">取消</button>
+              <button class="btn-primary" id="stkAddSave">加入表情库</button>
+            </div>
+          </div>
         </div>
       </div>
 
