@@ -98,7 +98,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v19'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v20'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -2382,12 +2382,18 @@ function renderPresetGroups() {
     const card = el('div', { class: 'pg-card' });
     // 组头：开关 + 名称 + 类型/条数徽标 + 操作
     const head = el('div', { class: 'pg-head' });
-    const gcb = el('input', { type: 'checkbox', title: '整组开关' });
+    const gcb = el('input', { type: 'checkbox', title: '整组开关（联动组内所有条目）' });
     gcb.checked = g.enabled !== false;
-    gcb.addEventListener('change', () => { g.enabled = gcb.checked; saveState(); });
+    // ★ 父子联动：组开关切换 → 组内所有子条目跟随勾选/取消
+    gcb.addEventListener('change', () => {
+      g.enabled = gcb.checked;
+      (g.items || []).forEach((it) => { it.enabled = gcb.checked; });
+      saveState();
+      renderPresetGroups();
+    });
     const addB = el('button', { class: 'msg-action-btn', title: '添加条目', 'aria-label': '添加条目' });
     addB.appendChild(icon('i-plus', 'icon-sm'));
-    addB.addEventListener('click', () => openPresetEditor(g, null));
+    addB.addEventListener('click', () => { g.collapsed = false; saveState(); openPresetEditor(g, null); });
     const expB = el('button', { class: 'msg-action-btn', title: '导出此分组', 'aria-label': '导出' });
     expB.appendChild(icon('i-export', 'icon-sm'));
     expB.addEventListener('click', () => exportPresetGroup(g));
@@ -2400,14 +2406,18 @@ function renderPresetGroups() {
       renderPresetGroups();
     });
     head.appendChild(gcb);
-    head.appendChild(el('span', { class: 'pg-name' }, g.name));
+    // ★ 折叠/展开：点组名切换，默认收起（避免几百条平铺）
+    const folded = g.collapsed !== false;
+    const nameSpan = el('span', { class: 'pg-name pg-fold', title: '点击折叠/展开' }, (folded ? '▸ ' : '▾ ') + g.name);
+    nameSpan.addEventListener('click', () => { g.collapsed = !folded; saveState(); renderPresetGroups(); });
+    head.appendChild(nameSpan);
     head.appendChild(el('span', { class: 'pg-badge' }, `${PRESET_TYPE_LABEL[g.type] || '预设'}·${(g.items || []).length}条`));
     head.appendChild(addB);
     head.appendChild(expB);
     head.appendChild(delB);
     card.appendChild(head);
-    // 条目行（点名字直接进编辑器）
-    (g.items || []).forEach((it, idx) => {
+    // 条目行（点名字直接进编辑器）；收起时不渲染
+    if (!folded) (g.items || []).forEach((it, idx) => {
       const row = el('div', { class: 'preset-item' });
       const cb = el('input', { type: 'checkbox' });
       cb.checked = it.enabled !== false;
@@ -2480,12 +2490,18 @@ function renderRegexGroups() {
   state.regexGroups.forEach((g) => {
     const card = el('div', { class: 'pg-card' });
     const head = el('div', { class: 'pg-head' });
-    const gcb = el('input', { type: 'checkbox', title: '整区开关' });
+    const gcb = el('input', { type: 'checkbox', title: '整区开关（联动区内所有规则）' });
     gcb.checked = g.enabled !== false;
-    gcb.addEventListener('change', () => { g.enabled = gcb.checked; saveState(); });
+    // ★ 父子联动：区开关切换 → 区内所有规则跟随勾选/取消
+    gcb.addEventListener('change', () => {
+      g.enabled = gcb.checked;
+      g.rules.forEach((r) => { r.enabled = gcb.checked; });
+      saveState();
+      renderRegexGroups();
+    });
     const addB = el('button', { class: 'msg-action-btn', title: '添加规则', 'aria-label': '添加规则' });
     addB.appendChild(icon('i-plus', 'icon-sm'));
-    addB.addEventListener('click', () => { g.rules.push({ name: '', pattern: '', replacement: '', enabled: true }); saveState(); renderRegexGroups(); });
+    addB.addEventListener('click', () => { g.collapsed = false; saveState(); openRegexEditor(g, null); });
     const delB = el('button', { class: 'msg-action-btn', title: '删除分区', 'aria-label': '删除分区' });
     delB.appendChild(icon('i-trash', 'icon-sm'));
     delB.addEventListener('click', () => {
@@ -2495,33 +2511,75 @@ function renderRegexGroups() {
       renderRegexGroups();
     });
     head.appendChild(gcb);
-    head.appendChild(el('span', { class: 'pg-name' }, g.name));
+    // ★ 折叠/展开：点区名切换，默认收起
+    const folded = g.collapsed !== false;
+    const nameSpan = el('span', { class: 'pg-name pg-fold', title: '点击折叠/展开' }, (folded ? '▸ ' : '▾ ') + g.name);
+    nameSpan.addEventListener('click', () => { g.collapsed = !folded; saveState(); renderRegexGroups(); });
+    head.appendChild(nameSpan);
     head.appendChild(el('span', { class: 'pg-badge' }, `${g.rules.length}条`));
     head.appendChild(addB);
     head.appendChild(delB);
     card.appendChild(head);
-    g.rules.forEach((rule, idx) => {
+    // 规则行（收起时不渲染）：开关 + 名称 + 核心匹配规则 + 编辑/删除
+    if (!folded) g.rules.forEach((rule, idx) => {
       const row = el('div', { class: 'regex-item' });
       const cb = el('input', { type: 'checkbox' });
       cb.checked = rule.enabled !== false;
       cb.addEventListener('change', () => { rule.enabled = cb.checked; saveState(); });
-      const nameSpan = el('span', { class: 'regex-item-name', title: rule.name || rule.pattern || '' }, rule.name || '未命名');
-      const pat = el('input', { class: 'field-input', type: 'text', placeholder: '正则（如 宝贝）', value: rule.pattern || '' });
-      pat.addEventListener('change', () => { rule.pattern = pat.value; if (!rule.name) rule.name = pat.value; saveState(); renderRegexGroups(); });
-      const rep = el('input', { class: 'field-input', type: 'text', placeholder: '替换成（如 月月）', value: rule.replacement || '' });
-      rep.addEventListener('change', () => { rule.replacement = rep.value; saveState(); });
+      const rName = el('span', { class: 'regex-item-name', title: rule.name || '' }, rule.name || '未命名');
+      rName.addEventListener('click', () => openRegexEditor(g, rule));
+      const rPat = el('span', { class: 'regex-item-pattern', title: `${rule.pattern || ''} → ${rule.replacement || ''}` }, rule.pattern || '(空)');
+      const editB = el('button', { class: 'msg-action-btn', title: '编辑', 'aria-label': '编辑' });
+      editB.appendChild(icon('i-pencil', 'icon-sm'));
+      editB.addEventListener('click', () => openRegexEditor(g, rule));
       const delR = el('button', { class: 'msg-action-btn', title: '删除', 'aria-label': '删除' });
       delR.appendChild(icon('i-trash', 'icon-sm'));
       delR.addEventListener('click', () => { g.rules.splice(idx, 1); saveState(); renderRegexGroups(); });
       row.appendChild(cb);
-      row.appendChild(nameSpan);
-      row.appendChild(pat);
-      row.appendChild(rep);
+      row.appendChild(rName);
+      row.appendChild(rPat);
+      row.appendChild(editB);
       row.appendChild(delR);
       card.appendChild(row);
     });
     box.appendChild(card);
   });
+}
+
+// ============ 正则规则编辑器（名称/匹配/替换，实时保存） ============
+let regexEditing = null; // { group, rule|null }
+
+function openRegexEditor(group, rule) {
+  regexEditing = { group, rule };
+  $('reTitle').textContent = rule ? `编辑规则（${group.name}）` : `新建规则（${group.name}）`;
+  $('reName').value = rule ? (rule.name || '') : '';
+  $('rePattern').value = rule ? (rule.pattern || '') : '';
+  $('reReplacement').value = rule ? (rule.replacement || '') : '';
+  $('regexEditor').hidden = false;
+  $('regexEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeRegexEditor() {
+  regexEditing = null;
+  $('regexEditor').hidden = true;
+}
+
+function saveRegexEditor() {
+  if (!regexEditing) return;
+  const pattern = $('rePattern').value;
+  const name = $('reName').value.trim() || pattern || '未命名';
+  const replacement = $('reReplacement').value;
+  if (regexEditing.rule) {
+    regexEditing.rule.name = name;
+    regexEditing.rule.pattern = pattern;
+    regexEditing.rule.replacement = replacement;
+  } else {
+    regexEditing.group.rules.push({ name, pattern, replacement, enabled: true });
+  }
+  saveState();
+  closeRegexEditor();
+  renderRegexGroups();
+  toast('已保存 ✓');
 }
 
 // ============ 初始化 ============
@@ -2607,6 +2665,8 @@ function init() {
   });
   $('peSave').addEventListener('click', savePresetEditor);
   $('peCancel').addEventListener('click', closePresetEditor);
+  $('reSave').addEventListener('click', saveRegexEditor);
+  $('reCancel').addEventListener('click', closeRegexEditor);
 
   // 正则分区：批量导入到所选分区 + 新建分区
   $('importRegexBtn').addEventListener('click', () => $('regexInput').click());

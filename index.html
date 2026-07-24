@@ -586,6 +586,17 @@
           </div>
           <span class="field-hint">支持酒馆正则格式（findRegex/replaceString，$1 捕获组）；分区和单条都能独立开关</span>
           <div id="regexGroupList"></div>
+          <!-- 正则规则编辑器（名称/匹配/替换） -->
+          <div class="pe-editor" id="regexEditor" hidden>
+            <div class="field-hint" id="reTitle">编辑规则</div>
+            <input type="text" id="reName" class="field-input" placeholder="规则名称">
+            <input type="text" id="rePattern" class="field-input" placeholder="正则（如 宝(.+?)宝）">
+            <input type="text" id="reReplacement" class="field-input" placeholder="替换成（支持 $1 捕获组）">
+            <div class="button-row">
+              <button class="btn-secondary" id="reCancel">取消</button>
+              <button class="btn-primary" id="reSave">保存规则</button>
+            </div>
+          </div>
         </div>
       </div>
 
