@@ -144,6 +144,37 @@ console.log('[4] maybeRollSummary 滚动总结');
   const swVer = (swSrc.match(/CACHE_NAME = 'xiaoshouji-(v\d+)'/) || [])[1];
   check(`APP_VERSION(${app.APP_VERSION}) === CACHE_NAME(${swVer})`, swVer === app.APP_VERSION);
 
+  // ---------- 6. 勾选注入过滤 + 8w字不报错 ----------
+  console.log('[6] 勾选过滤 + 超长文本');
+  // 6a. 同组内启用+禁用规则混存，只有启用规则生效
+  s.regexGroups = [{ id: 'g1', name: '混合', enabled: true, rules: [
+    { pattern: '哈', replacement: '嘿', enabled: true },
+    { pattern: '小', replacement: '大', enabled: false },
+  ]}];
+  check('同组启用规则生效，禁用规则不影响', app.applyRegexRules('哈小') === '嘿小');
+  // 6b. 关闭组里所有规则（含启用）都不生效
+  s.regexGroups = [{ id: 'g2', name: '全关', enabled: false, rules: [
+    { pattern: '哈', replacement: '嘿', enabled: true },
+  ]}];
+  check('整组关闭时即使规则启用也不替换', app.applyRegexRules('哈') === '哈');
+  // 6c. 8w字超长文本不被截断、不报错
+  const big = '字'.repeat(80000);
+  s.presetGroups = [{ id: 'big', name: '巨长', type: 'preset', enabled: true, items: [{ name: 'big', content: big, enabled: true }] }];
+  let big_sp;
+  try { big_sp = app.buildSystemPrompt(); } catch (e) { big_sp = null; }
+  check('8w字预设不报错且全部塞进 system', big_sp && big_sp.includes(big) && big_sp.length >= 80000);
+  // 6d. 关闭组里的内容不会出现在报文里
+  s.presetGroups = [
+    { id: 'on',  name: '开的组', type: 'preset', enabled: true,  items: [{ name: 'a', content: 'A_开', enabled: true }] },
+    { id: 'off', name: '关的组', type: 'preset', enabled: false, items: [{ name: 'b', content: 'B_关', enabled: true }] },
+  ];
+  const sp2 = app.buildSystemPrompt();
+  check('关闭组内容过滤掉', sp2.includes('A_开') && !sp2.includes('B_关'));
+  s.presetGroups = [{ id: 'g1', name: '测试预设', type: 'preset', enabled: true, items: [
+    { name: 'p1', content: '破限内容：{{user}} 和 {{char}} 的故事', enabled: true },
+    { name: 'p2', content: '被关闭的条目', enabled: false },
+  ]}];
+
   console.log(failures === 0 ? '\n全部通过 ✓' : `\n${failures} 项失败 ✗`);
   process.exit(failures === 0 ? 0 : 1);
 })();

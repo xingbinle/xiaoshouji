@@ -98,7 +98,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v20'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v21'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -2141,24 +2141,78 @@ function renderDebugPanel() {
   if (!box) return;
   const SLOT = ['① 核心提示词/破限', '② 世界书', '③ 角色卡/人设', '④ 用户设定', '⑤ 聊天历史', '⑥ 当前消息'];
   const lines = [];
-  let msgs;
+  let msgs, sysText = '';
   if (lastRequestDebug && lastRequestDebug.messages && lastRequestDebug.messages.length) {
-    lines.push(`模型：${lastRequestDebug.model}　温度：${lastRequestDebug.temperature}　max_tokens：${lastRequestDebug.max_tokens}`);
-    msgs = lastRequestDebug.messages;
+    const m = lastRequestDebug;
+    lines.push(`模型：${m.model}　温度：${m.temperature}　max_tokens：${m.max_tokens}`);
+    const totalLen = (m.messages || []).reduce((s, x) => s + (typeof x.content === 'string' ? x.content.length : JSON.stringify(x.content).length), 0);
+    const sysLen = (m.messages[0] && typeof m.messages[0].content === 'string') ? m.messages[0].content.length : 0;
+    lines.push(`报文总字数：${totalLen}　system：${sysLen}　历史：${totalLen - sysLen}`);
+    if (sysLen > 30000) lines.push(`⚠️ system 过长（${sysLen}字 ≈ ${Math.round(sysLen / 1.5)} tokens），极易被截断/失忆。建议：取消多余预设或精简世界书。`);
+    msgs = m.messages;
+    sysText = (m.messages[0] && typeof m.messages[0].content === 'string') ? m.messages[0].content : '';
   } else {
-    lines.push('（还没发过消息，下面是现在会发出去的 system prompt 预览）');
-    msgs = [{ role: 'system', content: buildSystemPrompt() }];
+    lines.push('（还没发过消息，下面是当前会发出去的 system prompt 预览）');
+    sysText = buildSystemPrompt();
+    lines.push(`system 预览字数：${sysText.length}`);
+    msgs = [{ role: 'system', content: sysText }];
   }
   msgs.forEach((m, i) => {
     let slot;
-    if (m.role === 'system') slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→末尾记忆总结）`;
+    if (m.role === 'system') {
+      slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→末尾记忆总结）`;
+      const breaks = debugSlotChars(typeof m.content === 'string' ? m.content : '');
+      if (breaks.length) lines.push(`   ${breaks.join('　')}`);
+    }
     else if (i === msgs.length - 1) slot = `${SLOT[5]} [${m.role}]`;
     else slot = `${SLOT[4]} [${m.role}]`;
     lines.push(`\n── ${slot} ${'─'.repeat(20)}`);
     const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
     lines.push(c.length > 1500 ? c.slice(0, 1500) + `\n…（共 ${c.length} 字，截断显示）` : c);
   });
+  // ★ 勾选注入验证：直接读当前 state 状态（不靠报文反推），清楚显示谁被过滤
+  lines.push('\n── 勾选注入验证 ──');
+  const checks = [];
+  for (const g of (state.presetGroups || [])) {
+    const on = g.enabled !== false;
+    const cnt = (g.items || []).filter((it) => it.enabled !== false && it.content && it.content.trim()).length;
+    if (!on) checks.push(`  ❌ [${g.name}] 整组关闭，已过滤`);
+    else if (!cnt) checks.push(`  ⚠️ [${g.name}] 开启但无启用条目，未注入`);
+    else checks.push(`  ✅ [${g.name}] 注入 ${cnt} 条`);
+  }
+  for (const g of (state.regexGroups || [])) {
+    const on = g.enabled !== false;
+    const cnt = (g.rules || []).filter((r) => r.enabled !== false && r.pattern).length;
+    if (!on) checks.push(`  ❌ [正则·${g.name}] 整区关闭`);
+    else checks.push(`  ✅ [正则·${g.name}] 应用 ${cnt} 条规则`);
+  }
+  if (!checks.length) checks.push('  （无预设/正则分组）');
+  lines.push(checks.join('\n'));
   box.textContent = lines.join('\n');
+}
+
+// 拆解 system 文本中各槽位字数（不出现就不报）
+function debugSlotChars(sysText) {
+  if (!sysText) return [];
+  const marks = [
+    { label: '② 世界书', needle: '【世界书】\n' },
+    { label: '③ 人设',   needle: '的人设定义】\n' },
+    { label: '④ 用户',   needle: '【用户设定】\n' },
+    { label: '⑥ 记忆',   needle: '【长期记忆】\n' },
+    { label: '⑥ 总结',   needle: '【之前聊天的总结】\n' },
+  ];
+  const positions = [];
+  for (const m of marks) {
+    const i = sysText.indexOf(m.needle);
+    if (i !== -1) positions.push({ label: m.label, pos: i });
+  }
+  positions.sort((a, b) => a.pos - b.pos);
+  const out = [];
+  for (let i = 0; i < positions.length; i++) {
+    const len = (positions[i + 1] ? positions[i + 1].pos : sysText.length) - positions[i].pos;
+    out.push(`${positions[i].label}：${len}字`);
+  }
+  return out;
 }
 
 function loadMpPanel() {
