@@ -827,6 +827,100 @@ function enterSendToChat() {
   renderMessages();
 }
 
+// 单条消息 → API 格式（user 消息专用；AI 的红包/撤回也走这里保留状态文本）
+function serializeSingleMessage(m) {
+  const role = m.role === 'ai' ? 'assistant' : m.role;
+  if (m.type === 'voice') {
+    return {
+      role,
+      content: `[语音 ${m.duration || 0}秒] ${m.text || ''}`,
+    };
+  }
+  if (m.type === 'image' && m.imageUrl) {
+    return {
+      role,
+      content: [
+        { type: 'text', text: m.text || '请看这张图片' },
+        { type: 'image_url', image_url: { url: m.imageUrl } },
+      ],
+    };
+  }
+  if (m.type === 'recall') {
+    return { role, content: '[撤回了一条消息]' };
+  }
+  if (m.type === 'redpacket') {
+    // M1: 转成纯文本让AI自然回应用户发红包这个动作，不暴露内部协议
+    const sender = m.role === 'user' ? '月月' : state.aiName;
+    if (m.status === 'received') {
+      const recipient = m.recipient === 'user' ? '月月' : state.aiName;
+      return { role, content: `🧧 ${recipient}领取了${sender}的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）` };
+    }
+    if (m.status === 'expired') {
+      return { role, content: `🧧 ${sender}发的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）已过期` };
+    }
+    // pending: 红包还没人领
+    return { role, content: `🧧 ${sender}发了一个红包：¥${(m.amount||0).toFixed(2)}「${m.note||''}」` };
+  }
+  if (m.type === 'system-event') {
+    // system-event 是UI提示，不发给API
+    return null;
+  }
+  let content = m.text || '';
+  if (m.edited) content += ' (已编辑)';
+  return { role, content };
+}
+
+// AI 单条消息 → 模型输出格式的 JSON 条目（打包进 {"messages":[...]} 用）
+function serializeAIEntry(m) {
+  if (m.type === 'voice') return { type: 'voice', duration: m.duration || 3, content: m.text || '' };
+  if (m.type === 'sticker') return { type: 'sticker', sticker: m.sticker || m.text || '' };
+  if (m.type === 'image') return { type: 'text', content: `[图片] ${m.text || ''}`.trim() };
+  const content = (m.text || '') + (m.edited ? ' (已编辑)' : '');
+  return content.trim() ? { type: 'text', content } : null;
+}
+
+// 聊天历史 → API 消息列表
+// ★ 关键：AI 的连续消息打包回 {"messages":[...]} JSON——模型会模仿历史里
+//   "自己的输出格式"，这是 voice/多消息稳定输出的核心示范！
+//   （旧版逐条纯文本序列化，模型学着学着就丢了对 JSON 的印象，语音逐渐消失）
+function serializeMessagesForAPI(messages) {
+  const apiMessages = [];
+  let aiGroup = null;
+  const flushAIGroup = () => {
+    if (aiGroup && aiGroup.length) {
+      apiMessages.push({ role: 'assistant', content: JSON.stringify({ messages: aiGroup }) });
+    }
+    aiGroup = null;
+  };
+
+  messages.forEach((m) => {
+    // system-event：不发给API，也不打断AI消息组（它本来就插在AI一轮输出中间）
+    if (m.type === 'system-event') return;
+
+    if (m.role === 'ai') {
+      // AI 的红包/撤回：保持文本形态单独一条（保留领取状态信息），并打断分组
+      if (m.type === 'redpacket' || m.type === 'recall') {
+        flushAIGroup();
+        const rm = serializeSingleMessage(m);
+        if (rm) apiMessages.push(rm);
+        return;
+      }
+      const entry = serializeAIEntry(m);
+      if (entry) (aiGroup = aiGroup || []).push(entry);
+      return;
+    }
+
+    // user 消息：先结算 AI 组，再逐条序列化
+    flushAIGroup();
+    const um = serializeSingleMessage(m);
+    if (!um) return;
+    if (um.content === '' || (Array.isArray(um.content) && !um.content.length)) return;
+    apiMessages.push(um);
+  });
+  flushAIGroup();
+  return apiMessages;
+}
+
 // ============ 点 🛩️ 触发 AI ============
 async function sendMessage() {
   // 先把当前输入框内容也加进去
@@ -848,51 +942,7 @@ async function sendMessage() {
   syncLoadingBubble();
 
   try {
-    const apiMessages = state.messages.map((m) => {
-      const role = m.role === 'ai' ? 'assistant' : m.role;
-      if (m.type === 'voice') {
-        return {
-          role,
-          content: `[语音 ${m.duration || 0}秒] ${m.text || ''}`,
-        };
-      }
-      if (m.type === 'image' && m.imageUrl) {
-        return {
-          role,
-          content: [
-            { type: 'text', text: m.text || '请看这张图片' },
-            { type: 'image_url', image_url: { url: m.imageUrl } },
-          ],
-        };
-      }
-      if (m.type === 'recall') {
-        return { role, content: '[撤回了一条消息]' };
-      }
-      if (m.type === 'redpacket') {
-        // M1: 转成纯文本让AI自然回应用户发红包这个动作，不暴露内部协议
-        const sender = m.role === 'user' ? '月月' : state.aiName;
-        if (m.status === 'received') {
-          const recipient = m.recipient === 'user' ? '月月' : state.aiName;
-          return { role, content: `🧧 ${recipient}领取了${sender}的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）` };
-        }
-        if (m.status === 'expired') {
-          return { role, content: `🧧 ${sender}发的红包（¥${(m.amount||0).toFixed(2)}「${m.note||''}」）已过期` };
-        }
-        // pending: 红包还没人领
-        return { role, content: `🧧 ${sender}发了一个红包：¥${(m.amount||0).toFixed(2)}「${m.note||''}」` };
-      }
-      if (m.type === 'system-event') {
-        // system-event 是UI提示，不发给API；返回null让下面的filter过滤掉
-        return null;
-      }
-      let content = m.text || '';
-      if (m.edited) content += ' (已编辑)';
-      return { role, content };
-    }).filter((m) => {
-      if (!m) return false;  // system-event等不发给API的消息
-      if (m.role === 'user' && (m.content === '' || (Array.isArray(m.content) && !m.content.length))) return false;
-      return true;
-    });
+    const apiMessages = serializeMessagesForAPI(state.messages);
 
     // ★ M2: 注入待领取红包信息，让 AI 知道可以领
     const pendingUserRPs = state.messages.filter(m =>
@@ -1282,6 +1332,8 @@ function salvageJSONMessages(raw) {
 }
 
 // 纯文本兜底：微信风拆行，代码块保持完整一条
+// ★ 识别 [语音 X秒] xxx 伪语音格式——模型模仿旧历史序列化格式时会输出这个，
+//   转成真正的 voice 气泡，不让语音退化成文字
 function fallbackPlainText(raw) {
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
   if (!cleaned) return [{ type: 'text', text: '（空回复）' }];
@@ -1292,7 +1344,13 @@ function fallbackPlainText(raw) {
     } else {
       part.text.split('\n').forEach((line) => {
         const t = line.trim();
-        if (t) out.push({ type: 'text', text: t });
+        if (!t) return;
+        const vm = t.match(/^\[语音\s*(\d+(?:\.\d+)?)\s*秒\]\s*([\s\S]+)$/);
+        if (vm) {
+          out.push({ type: 'voice', duration: Math.round(parseFloat(vm[1])) || 3, text: vm[2].trim() });
+        } else {
+          out.push({ type: 'text', text: t });
+        }
       });
     }
   });
