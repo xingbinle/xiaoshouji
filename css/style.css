@@ -2071,12 +2071,8 @@ a {
 }
 
 /* ============================================
-   第一期：小手机菜单 + 预设/AI/用户设定面板
+   第一期：小手机全屏视图（菜单页 + 功能子页面）
    ============================================ */
-
-.topbar {
-  position: relative;
-}
 
 .brand {
   cursor: pointer;
@@ -2085,73 +2081,108 @@ a {
   border-radius: var(--r-md);
 }
 
-.brand-menu {
-  display: none; /* ★ 用 .show 类控制显隐——直接写 display:flex 会盖掉 hidden 属性 */
-  position: absolute;
-  top: calc(100% + 6px);
-  left: var(--gap-md, 16px);
+/* 全屏视图容器（注意：[hidden] 必须显式压过 display:flex） */
+.mp-view {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
   background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
-  flex-direction: column;
-  min-width: 176px;
-  z-index: 60;
-  animation: fade-in 0.15s var(--ease-out);
-}
-
-.brand-menu.show {
   display: flex;
+  flex-direction: column;
+  animation: fade-in 0.2s var(--ease-out);
 }
 
-.brand-menu-item {
+.mp-view[hidden] {
+  display: none;
+}
+
+.mp-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--ink);
-  text-align: left;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: background 0.15s var(--ease-out);
-}
-
-.brand-menu-item:hover {
-  background: var(--sky-pale);
-  color: var(--sky-deep);
-}
-
-/* 面板页签 */
-.role-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 10px 24px 0;
-  background: var(--paper-2);
+  gap: 10px;
+  padding: 14px 18px;
+  padding-top: max(14px, env(safe-area-inset-top));
   border-bottom: 1px solid var(--line-soft);
+  background: var(--paper-2);
   flex-shrink: 0;
 }
 
-.role-tab {
-  padding: 8px 14px;
-  border-radius: var(--r-md) var(--r-md) 0 0;
+.mp-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
   font-size: 14px;
-  color: var(--ink-soft);
+  color: var(--sky-deep);
   background: transparent;
-  border: 1px solid transparent;
-  border-bottom: none;
+  border: 1px solid var(--line);
   cursor: pointer;
   transition: all 0.15s var(--ease-out);
 }
 
-.role-tab.active {
-  background: var(--paper);
-  color: var(--sky-deep);
-  border-color: var(--line);
-  font-weight: 600;
+.mp-back:hover {
+  background: var(--sky-pale);
+  border-color: var(--sky);
+}
+
+.mp-back .icon-sm {
+  transform: scaleX(-1); /* 右箭头翻成左箭头 */
+}
+
+.mp-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.mp-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 18px;
+}
+
+/* 菜单页大条目 */
+.mp-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 14px;
+  margin-bottom: 10px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+}
+
+.mp-menu-item:hover {
+  border-color: var(--sky);
+  background: var(--sky-pale);
+}
+
+.mp-menu-item:active {
+  transform: scale(0.98);
+}
+
+.mp-menu-emoji {
+  font-size: 20px;
+}
+
+.mp-menu-label {
+  flex: 1;
+  text-align: left;
+}
+
+.mp-chevron {
+  color: var(--ink-light);
 }
 
 /* 预设列表 / 正则列表 */

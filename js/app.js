@@ -2044,36 +2044,30 @@ function handleSticker() {
   toast('表情包库 v0.2 上线，敬请期待');
 }
 
-// ============ 第一期：小手机菜单 + 三件套面板 ============
-function toggleBrandMenu(force) {
-  const menu = $('brandMenu');
-  const isShow = force !== undefined ? force : !menu.classList.contains('show');
-  menu.classList.toggle('show', isShow);
-}
+// ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
+const MP_TITLES = { menu: '小手机', preset: '预设管理', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定' };
 
-function openRolePanel(tab) {
-  toggleBrandMenu(false);
-  loadRolePanel();
-  switchRoleTab(tab || 'preset');
-  $('rolePanel').hidden = false;
+function openMpView(page = 'menu') {
+  loadMpPanel();
+  navMp(page);
+  $('mpView').hidden = false;
   document.body.style.overflow = 'hidden';
 }
 
-function closeRolePanel() {
-  $('rolePanel').hidden = true;
+function closeMpView() {
+  $('mpView').hidden = true;
   document.body.style.overflow = '';
 }
 
-function switchRoleTab(tab) {
-  document.querySelectorAll('.role-tab').forEach((b) => {
-    b.classList.toggle('active', b.dataset.tab === tab);
-  });
-  ['preset', 'ai', 'user'].forEach((t) => {
-    $('roleTab-' + t).hidden = (t !== tab);
+function navMp(page) {
+  $('mpTitle').textContent = MP_TITLES[page] || '小手机';
+  $('mpBack').hidden = (page === 'menu');
+  document.querySelectorAll('.mp-page').forEach((p) => {
+    p.hidden = (p.id !== 'mpPage-' + page);
   });
 }
 
-function loadRolePanel() {
+function loadMpPanel() {
   // 用户设定
   const u = state.userProfile || {};
   $('userAvatarPreview').innerHTML = u.avatar ? `<img src="${u.avatar}" alt="头像">` : '🌙';
@@ -2164,6 +2158,20 @@ function importPresetFile(file) {
   reader.readAsText(file);
 }
 
+// 导出为酒馆兼容格式（导入端也认这个结构，可来回倒腾/覆盖）
+function exportPreset() {
+  if (!state.preset || !state.preset.prompts || !state.preset.prompts.length) {
+    toast('还没有预设可导出');
+    return;
+  }
+  const data = { name: state.preset.name || 'preset', prompts: state.preset.prompts };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.preset.name || 'xiaoshouji-preset'}.json`;
+  a.click();
+}
+
 function renderPresetList() {
   const box = $('presetPromptList');
   box.innerHTML = '';
@@ -2243,24 +2251,12 @@ function init() {
   // 底部"完成"按钮：关闭设置面板（设置已通过保存按钮持久化）
   $('closeSettingsBottom').addEventListener('click', closeSettings);
 
-  // ===== 第一期：小手机菜单（左上角品牌区） =====
-  $('brandBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleBrandMenu();
-  });
-  document.addEventListener('click', (e) => {
-    const menu = $('brandMenu');
-    if (menu.classList.contains('show') && !menu.contains(e.target) && !e.target.closest('#brandBtn')) {
-      toggleBrandMenu(false);
-    }
-  });
-  document.querySelectorAll('.brand-menu-item').forEach((btn) => {
-    btn.addEventListener('click', () => openRolePanel(btn.dataset.rtab));
-  });
-  $('closeRole').addEventListener('click', closeRolePanel);
-  $('roleMask').addEventListener('click', closeRolePanel);
-  document.querySelectorAll('.role-tab').forEach((btn) => {
-    btn.addEventListener('click', () => switchRoleTab(btn.dataset.tab));
+  // ===== 第一期：小手机全屏视图（左上角品牌区进入） =====
+  $('brandBtn').addEventListener('click', () => openMpView('menu'));
+  $('mpClose').addEventListener('click', closeMpView);
+  $('mpBack').addEventListener('click', () => navMp('menu'));
+  document.querySelectorAll('.mp-menu-item').forEach((btn) => {
+    btn.addEventListener('click', () => navMp(btn.dataset.mp));
   });
 
   // 用户设定（改完自动保存）
@@ -2287,8 +2283,9 @@ function init() {
     toast('已保存 ✓');
   });
 
-  // 预设导入 + 正则规则
+  // 预设导入/导出 + 正则规则
   $('importPresetBtn').addEventListener('click', () => $('presetInput').click());
+  $('exportPresetBtn').addEventListener('click', exportPreset);
   $('presetInput').addEventListener('change', (e) => {
     const f = e.target.files[0];
     if (f) importPresetFile(f);

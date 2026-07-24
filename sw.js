@@ -4,7 +4,7 @@
    策略：安装时预缓存核心资源，请求时缓存优先 + 后台更新
    ============================================ */
 
-const CACHE_NAME = 'xiaoshouji-v16';
+const CACHE_NAME = 'xiaoshouji-v17';
 const CORE_ASSETS = [
   './',
   './index.html',
