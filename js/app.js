@@ -482,7 +482,7 @@ function buildMessageNode(msg, idx) {
     // AI 想发图片但目前没真实图片 URL，渲染成 placeholder
     bubble.appendChild(el('div', { class: 'image-placeholder' }, '🖼️ ' + (msg.text || '[图片]')));
   } else if (msg.type === 'sticker') {
-    bubble.appendChild(el('div', { class: 'sticker-placeholder' }, '😀 ' + (msg.text || '[表情包]')));
+    bubble.appendChild(el('div', { class: 'sticker-placeholder' }, '😀 ' + (msg.text || msg.sticker || '[表情包]')));
   } else if (msg.text) {
     const parts = splitCodeBlocks(msg.text);
     parts.forEach((part) => {
@@ -960,8 +960,9 @@ async function sendMessage() {
     }
 
     // ★ 解析 AI 最终文字回复
+    // 如果本轮只调了工具（比如纯发/领红包）且没有文字内容，就别塞"（空回复）"气泡了
     const rawReply = message.content || '';
-    const parsedMessages = parseAIResponse(rawReply);
+    const parsedMessages = (!rawReply && toolLoops > 0) ? [] : parseAIResponse(rawReply);
     parsedMessages.forEach((msg) => {
       if (msg._direct) {
         // 内联工具产生的消息（红包/系统事件），已有完整 role + type
@@ -1048,96 +1049,282 @@ function repairJSON(jsonStr) {
   return result;
 }
 
-// 解析 AI 回复（支持 JSON 多消息格式 + 内联工具调用 + JSON容错修复）
-// ★ 重要：内联工具(transfer/claim_redpacket)返回占位条目，保留在结果数组的正确位置，
+// ============ AI 回复解析（多形态兼容版） ============
+// 支持的回复形态：
+//   1. 标准 {"messages":[...]}（可带废话前缀 / ```json 围栏 / 多个 JSON 并存）
+//   2. 单条消息对象 {"type":"text","content":"..."} 或 {"message":{...}}
+//   3. 裸数组 [{...},{...}]
+//   4. 被 max_tokens 截断 / 破损的 JSON → 抢救出完整的单条消息
+//   5. 纯文本 → 按微信风拆成多条短气泡
+// ★ 内联工具(transfer/claim_redpacket)返回 _direct 占位条目，保留在结果数组的正确位置，
 //   由 sendMessage() 统一 push 到 state.messages，确保消息顺序正确。
+
+// 去掉尾随逗号（字符串感知）：{"a":1,} → {"a":1}，字符串内容里的 ,} 不动
+function removeTrailingCommas(jsonStr) {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; out += ch; continue; }
+    if (ch === ',') {
+      // 向前看：跳过空白后若是 } 或 ]，说明是尾逗号，丢掉
+      let j = i + 1;
+      while (j < jsonStr.length && /\s/.test(jsonStr[j])) j++;
+      if (j < jsonStr.length && (jsonStr[j] === '}' || jsonStr[j] === ']')) continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// 多策略解析 JSON：原始 → 修复未转义控制字符 → 再容忍尾随逗号
+function tryParseJSON(jsonStr) {
+  const attempts = [
+    jsonStr,
+    repairJSON(jsonStr),
+    removeTrailingCommas(repairJSON(jsonStr)),
+  ];
+  for (const s of attempts) {
+    try { return JSON.parse(s); } catch (e) { /* 换下一个策略 */ }
+  }
+  return null;
+}
+
+// 字符串感知地抠出文本中所有"完整的顶层 JSON 片段"
+// （旧版直接数 {} 深度，content 里出现 { 或 } 就会切错位置，导致整条回复报废）
+function extractJSONCandidates(raw) {
+  const candidates = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (start === -1) {
+      if (ch === '{' || ch === '[') {
+        start = i; depth = 1; inString = false; escaped = false;
+      }
+      continue;
+    }
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) {
+        candidates.push(raw.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  return candidates;
+}
+
+// 抠出文本中所有完整的 {...} 对象（含嵌套，抢救截断 JSON 用）
+function extractAllCompleteObjects(raw) {
+  const out = [];
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') stack.push(i);
+    else if (ch === '}' && stack.length) {
+      out.push(raw.slice(stack.pop(), i + 1));
+    }
+  }
+  return out;
+}
+
+const KNOWN_MSG_TYPES = ['text', 'voice', 'sticker', 'image', 'transfer', 'claim_redpacket'];
+
+// 判断一个值"长得像不像一条消息"（防止把无关的 [1,2] 之类误当消息列表）
+function looksLikeMessage(m) {
+  if (typeof m === 'string') return m.trim().length > 0;
+  if (!m || typeof m !== 'object') return false;
+  if (KNOWN_MSG_TYPES.includes(String(m.type || '').toLowerCase())) return true;
+  return typeof m.content === 'string' || typeof m.text === 'string' || typeof m.sticker === 'string';
+}
+
+// 把解析结果统一成消息列表
+// authoritative=true 表示这是明确的消息容器：即使内容全被丢弃，也不再降级到抢救/纯文本
+function normalizeRawMessages(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (Array.isArray(parsed)) {
+    return parsed.some(looksLikeMessage) ? { list: parsed, authoritative: false } : null;
+  }
+  if (Array.isArray(parsed.messages)) return { list: parsed.messages, authoritative: true };
+  if (parsed.message && typeof parsed.message === 'object') return { list: [parsed.message], authoritative: true };
+  if (looksLikeMessage(parsed)) return { list: [parsed], authoritative: true };
+  return null;
+}
+
+// 反转义 JSON 字符串内容
+function unescapeJSONString(s) {
+  try { return JSON.parse('"' + s + '"'); }
+  catch (e) {
+    return s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+}
+
+// 处理单条消息：字段归一化 + 内联工具执行；返回 null 表示丢弃
+function processParsedMessage(m) {
+  if (m == null) return null;
+  if (typeof m === 'string') return m.trim() ? { type: 'text', text: m } : null;
+  if (typeof m !== 'object') return { type: 'text', text: String(m) };
+
+  const type = String(m.type || 'text').toLowerCase().trim();
+
+  // ★ 内联工具：transfer（AI 发红包）→ 返回占位条目，保持位置
+  if (type === 'transfer') {
+    const amount = parseFloat(m.amount) || 0;
+    const note = String(m.note || m.content || '').slice(0, 30);
+    if (amount >= 0.01 && canTransfer('ai', amount).ok) {
+      addBalance('ai', -amount);
+      const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
+      saveWallet(); saveState();
+      return {
+        _direct: true,
+        role: 'ai', type: 'redpacket', amount, note: note || '一点心意～',
+        redpacketId: rpId, status: 'pending', recipient: null, createdAt: Date.now(),
+      };
+    }
+    return null; // 余额不足/金额非法：悄悄丢弃这一条，不影响其他消息
+  }
+
+  // ★ 内联工具：claim_redpacket（AI 领红包）→ 返回占位条目，保持位置
+  if (type === 'claim_redpacket') {
+    const rpId = String(m.redpacket_id || m.rp_id || m.id || m.content || '').trim();
+    if (rpId) {
+      const target = state.messages.find(x =>
+        x.redpacketId === rpId && x.type === 'redpacket' && x.status === 'pending'
+      );
+      if (target && (!target.createdAt || Date.now() - target.createdAt <= 24 * 60 * 60 * 1000)) {
+        target.status = 'received'; target.recipient = 'ai'; target.receivedAt = Date.now();
+        addBalance('ai', target.amount || 0);
+        state.transferLog.push({ type: 'claim', from: 'user', amount: target.amount, redpacketId: rpId, time: Date.now() });
+        saveWallet(); saveState();
+        return {
+          _direct: true,
+          role: 'user', type: 'system-event',
+          text: `${state.aiName}领取了月月的红包（¥${(target.amount || 0).toFixed(2)}，备注"${target.note || ''}"）`,
+        };
+      }
+    }
+    return null;
+  }
+
+  // content 归一化：兼容 content / text / message / sticker 字段，也兼容多模态数组
+  let content = m.content ?? m.text ?? m.message ?? m.sticker ?? '';
+  if (Array.isArray(content)) {
+    content = content.map(p => (typeof p === 'string' ? p : (p && p.text) || '')).join('');
+  }
+  content = String(content);
+
+  if (type === 'voice') {
+    if (!content.trim()) return null;
+    return { type: 'voice', text: content, duration: parseInt(m.duration) || 3 };
+  }
+  if (type === 'sticker') {
+    // ★ 修复：旧版把描述存在 sticker 字段，但渲染读的是 text，导致永远显示 [表情包]
+    return { type: 'sticker', text: content, sticker: String(m.sticker || content) };
+  }
+  if (type === 'image') {
+    return { type: 'image', text: content, imageUrl: m.imageUrl || m.image_url || undefined };
+  }
+  // text 及其他未知类型：一律按文本展示，保证内容不丢
+  return content.trim() ? { type: 'text', text: content } : null;
+}
+
+// 抢救模式：JSON 被截断/破损时，逐个抠出完整的消息对象
+function salvageJSONMessages(raw) {
+  const results = [];
+  for (const objStr of extractAllCompleteObjects(raw)) {
+    const parsed = tryParseJSON(objStr);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    if (!looksLikeMessage(parsed)) continue;
+    const processed = processParsedMessage(parsed);
+    if (processed) results.push(processed);
+  }
+  // 连完整对象都拼不出来时，用正则抠完整的 content 字符串（截断发生在对象中部也能救）
+  if (!results.length) {
+    const re = /"(?:content|text)"\s*:\s*"((?:\\.|[^"\\])+)/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+      const text = unescapeJSONString(m[1]);
+      if (text.trim()) results.push({ type: 'text', text });
+    }
+  }
+  return results;
+}
+
+// 纯文本兜底：微信风拆行，代码块保持完整一条
+function fallbackPlainText(raw) {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  if (!cleaned) return [{ type: 'text', text: '（空回复）' }];
+  const out = [];
+  splitCodeBlocks(cleaned).forEach((part) => {
+    if (part.type === 'code') {
+      out.push({ type: 'text', text: '```' + (part.lang || '') + '\n' + part.code + '\n```' });
+    } else {
+      part.text.split('\n').forEach((line) => {
+        const t = line.trim();
+        if (t) out.push({ type: 'text', text: t });
+      });
+    }
+  });
+  return out.length ? out : [{ type: 'text', text: cleaned }];
+}
+
+// 解析 AI 回复主入口
 function parseAIResponse(raw) {
-  if (!raw || typeof raw !== 'string') {
-    return [{ type: 'text', text: String(raw || '') }];
+  // content 可能是数组（部分中转返回多模态 parts 格式）
+  if (Array.isArray(raw)) {
+    const text = raw.map(p => (typeof p === 'string' ? p : (p && p.text) || '')).join('');
+    return [{ type: 'text', text: text || '（空回复）' }];
+  }
+  if (raw == null || raw === '') return [{ type: 'text', text: '（空回复）' }];
+  if (typeof raw !== 'string') return [{ type: 'text', text: String(raw) }];
+
+  // 1. 完整 JSON：逐个候选尝试（前面有废话 / 多个 JSON / ```json 围栏都能接住）
+  for (const jsonStr of extractJSONCandidates(raw)) {
+    const parsed = tryParseJSON(jsonStr);
+    const norm = normalizeRawMessages(parsed);
+    if (!norm) continue;
+    const processed = norm.list.map(processParsedMessage).filter(Boolean);
+    if (processed.length) return processed;
+    if (norm.authoritative) return [{ type: 'text', text: '（空回复）' }];
   }
 
-  // 1. 先尝试从原始文本中提取最外层的 JSON 对象（贪婪匹配到最后一个 }）
-  const startIdx = raw.indexOf('{');
-  if (startIdx !== -1) {
-    let depth = 0;
-    let endIdx = -1;
-    for (let i = startIdx; i < raw.length; i++) {
-      if (raw[i] === '{') depth++;
-      if (raw[i] === '}') {
-        depth--;
-        if (depth === 0) { endIdx = i; break; }
-      }
-    }
-    if (endIdx !== -1) {
-      const jsonStr = raw.slice(startIdx, endIdx + 1);
+  // 2. 抢救模式：JSON 被截断/破损时，抠出完整的单条消息
+  const salvaged = salvageJSONMessages(raw);
+  if (salvaged.length) return salvaged;
 
-      // 尝试多种解析策略
-      let parsed = null;
-      const strategies = [
-        () => JSON.parse(jsonStr),
-        () => JSON.parse(repairJSON(jsonStr)),
-      ];
-      for (const strat of strategies) {
-        try { parsed = strat(); break; } catch (e) { /* 继续下一个策略 */ }
-      }
-
-      if (parsed && parsed.messages && Array.isArray(parsed.messages)) {
-        const result = [];
-        for (const m of parsed.messages) {
-          // ★ 内联工具：transfer（AI 发红包）→ 返回占位条目，保持位置
-          if (m.type === 'transfer') {
-            const amount = parseFloat(m.amount) || 0;
-            const note = String(m.note || m.content || '').slice(0, 30);
-            if (amount >= 0.01 && canTransfer('ai', amount).ok) {
-              addBalance('ai', -amount);
-              const rpId = 'rp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-              state.transferLog.push({ type: 'send', from: 'ai', amount, redpacketId: rpId, time: Date.now() });
-              saveWallet(); saveState();
-              result.push({
-                _direct: true,
-                role: 'ai', type: 'redpacket', amount, note: note || '一点心意～',
-                redpacketId: rpId, status: 'pending', recipient: null, createdAt: Date.now(),
-              });
-            }
-            continue;
-          }
-          // ★ 内联工具：claim_redpacket（AI 领红包）→ 返回占位条目，保持位置
-          if (m.type === 'claim_redpacket') {
-            const rpId = String(m.redpacket_id || m.content || '').trim();
-            if (rpId) {
-              const target = state.messages.find(x =>
-                x.redpacketId === rpId && x.type === 'redpacket' && x.status === 'pending'
-              );
-              if (target && (!target.createdAt || Date.now() - target.createdAt <= 24 * 60 * 60 * 1000)) {
-                target.status = 'received'; target.recipient = 'ai'; target.receivedAt = Date.now();
-                addBalance('ai', target.amount || 0);
-                state.transferLog.push({ type: 'claim', from: 'user', amount: target.amount, redpacketId: rpId, time: Date.now() });
-                saveWallet(); saveState();
-                result.push({
-                  _direct: true,
-                  role: 'user', type: 'system-event',
-                  text: `${state.aiName}领取了月月的红包（¥${(target.amount || 0).toFixed(2)}，备注"${target.note || ''}"）`,
-                });
-              }
-            }
-            continue;
-          }
-          // 普通消息
-          result.push({
-            type: m.type || 'text',
-            text: m.content || '',
-            duration: m.duration,
-            sticker: m.sticker,
-            imageUrl: m.imageUrl,
-          });
-        }
-        return result.length ? result : [{ type: 'text', text: '（空回复）' }];
-      }
-    }
-  }
-
-  // 2. 兼容：纯文本 → 拆成单条（避免大段文字糊在一起）
-  return [{ type: 'text', text: raw }];
+  // 3. 纯文本兜底：按微信风拆成多条短气泡
+  return fallbackPlainText(raw);
 }
 
 // ============ 设置面板 ============
