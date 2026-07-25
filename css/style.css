@@ -277,7 +277,7 @@ a {
   justify-content: center;
   gap: var(--gap-md);
   pointer-events: none;
-  z-index: 0;
+  z-index: 7;
   opacity: 1;
   transition: opacity 0.4s var(--ease-out);
 }
@@ -3711,14 +3711,23 @@ a {
 }
 
 .sol-status-card-content {
-  max-height: 2.8em;
+  display: grid;
+  grid-template-rows: 0fr;
   overflow: hidden;
-  transition: max-height 0.25s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: grid-template-rows 0.25s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.sol-status-card-content > * {
+  min-height: 0;
 }
 
 .sol-status-card.expanded .sol-status-card-content {
-  max-height: 160px;
+  grid-template-rows: 1fr;
+}
+
+.sol-status-card.expanded .sol-status-card-content > * {
   overflow-y: auto;
+  max-height: 160px;
 }
 
 .sol-status-card p,
