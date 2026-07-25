@@ -119,7 +119,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v30'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v31'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -628,7 +628,8 @@ function buildMessageNode(msg, idx) {
     voice.appendChild(wave);
     voice.appendChild(el('span', { class: 'voice-duration' }, `${msg.duration || 0}"`));
     voice.appendChild(el('span', { class: 'voice-label' }, '语音'));
-    const transcript = el('div', { class: 'voice-transcript', hidden: true });
+    const transcript = el('div', { class: 'voice-transcript' });
+    transcript.hidden = true; // ponytail: IDL 属性赋值比 setAttribute('hidden', true) 在 iOS Safari 上更可靠
     transcript.textContent = msg.text || '';
     voice.appendChild(transcript);
     voice.addEventListener('click', () => {

@@ -1321,6 +1321,17 @@ a {
 /* 全局：HTML hidden 属性必须能压过任何 display:flex/grid（CSS 选择器优先级陷阱） */
 [hidden] { display: none !important; }
 
+/* ponytail: iOS Safari 拒绝在 display:none 的 file input 上响应 .click()，
+   改用屏幕外定位让元素"可见但不可见"，.click() 能正常触发文件选择器 */
+.offscreen-file {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* 引用回复预览条（输入框上方 · 紧凑贴边 · 明确"输入区附属"） */
 .quote-bar {
   width: 100%;
