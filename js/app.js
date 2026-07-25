@@ -285,6 +285,9 @@ function _applyLoaded(data) {
   state.summary = state.summary || '';
   state.memories = state.memories || [];
   state.summaryBoundary = state.summaryBoundary || 0;
+  // ★ 长线记忆配套 counter（v31）：散碎触发计数 + 提取锁
+  state._scatterFlags = state._scatterFlags || 0;
+  state._scatterExtracting = false;
   state.stickers = state.stickers || [];
   state.stickerCats = state.stickerCats || {};
   state.stickers.forEach((s) => {
@@ -1272,7 +1275,9 @@ function buildSystemPrompt() {
   const stkPrompt = enabledStickerPrompt();
   if (stkPrompt) tailParts.push(stkPrompt);
   if (state.memories && state.memories.length) {
-    tailParts.push('【长期记忆】\n' + state.memories.map(m => `- [${m.time}] ${m.text}`).join('\n'));
+    // ★ 推送策略：只发最近 N 条长线记忆（不堆 50 条污染 prompt），摘要快照 + 散碎 fact 一起送
+    const recentMems = state.memories.slice(-MEMORIES_SEND_LIMIT);
+    tailParts.push('【长期记忆】\n' + recentMems.map(m => `- [${m.time}] ${m.text}`).join('\n'));
   }
   if (state.summary && state.summary.trim()) {
     tailParts.push(`【之前聊天的总结】\n${state.summary.trim()}`);
@@ -1770,10 +1775,19 @@ function applyRegexRules(text) {
 const SUMMARY_CHUNK = 20;       // 10 轮 = 10 user + 10 ai = 20 条
 const SUMMARY_COLD_THRESHOLD = 20; // 未满 10 轮时冷启动全量保留
 const SUMMARY_RECENT_TURNS = 4;  // 成熟期：保留最近 2-4 轮原汁原味
+// 推送策略：每轮 API 调用只发最近 N 条长线记忆（不堆 50 条污染 prompt）
+const MEMORIES_SEND_LIMIT = 10;
+// 散碎记忆触发：关键词命中 + 攒到 N 个 → 异步抽散碎 fact
+const SCATTER_FLAGS_THRESHOLD = 5;
+const SCATTER_SYSTEM_PROMPT = `你是聊天记忆精炼员。用户在最近一段对话中提到了若干"重要事件"线索（生日、纪念、约定、不舒服、最近在做的事、重要决定、持续情绪等）。
+请只输出真正会被用户未来用到的稳定事实，每条一句话，最多5条，没有就输出空数组。
+只输出 JSON：{"facts":["事实1","事实2"]}`;
+
 const SUMMARY_SYSTEM_PROMPT = `你是聊天记录整理助手。把"新聊天记录"合并进"上次的总结"，输出压缩后的新总结，并提取值得长期记住的事实。
 要求：
 - 总结用第三人称，保留关键事件、约定、情绪变化、重要日期，150字以内
-- 长期记忆只收稳定事实（喜好、生日、约定、重要决定），每条一句话，最多3条，没有就给空数组
+- 长期记忆只收稳定事实（喜好、生日、约定、重要决定、最近在干的事、情绪波动），每条一句话，最多3条，没有就给空数组
+- 「新增长期记忆」返回的是相对"上次的总结"而言的新事实，重复已记录的就别再列
 - 只输出 JSON：{"summary":"新总结","memories":["记忆1","记忆2"]}`;
 
 // 统计已经"实际发生对话"的轮次（user 1 + ai 1 = 1 轮）
@@ -1819,13 +1833,13 @@ async function maybeRollSummary() {
 
     const raw = msg.content || '';
     let newSummary = '';
-    let newMemories = [];
+    let newFacts = [];
     for (const cand of extractJSONCandidates(raw)) {
       const p = tryParseJSON(cand);
       if (p && typeof p.summary === 'string') {
         newSummary = p.summary;
         if (Array.isArray(p.memories)) {
-          newMemories = p.memories.filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
+          newFacts = p.memories.filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
         }
         break;
       }
@@ -1833,15 +1847,81 @@ async function maybeRollSummary() {
     if (!newSummary) newSummary = raw.slice(0, 2000); // 模型没按格式来，原文兜底
 
     const stamp = new Date().toISOString().slice(0, 10);
-    newMemories.forEach(t => state.memories.push({ time: stamp, text: t.trim() }));
+    const oldBoundary = state.summaryBoundary;
+    // ★ 关键修复：每个周期的"宏观摘要快照"也作为一条长期记忆入账（用户要求）
+    const cycleNo = Math.floor(oldBoundary / SUMMARY_CHUNK) + 1;
+    state.memories.push({
+      time: stamp,
+      text: `【周期 ${cycleNo} 摘要快照】 ${newSummary.slice(0, 240)}`,
+      _kind: 'summary',
+    });
+    // AI 在本周期提取的散碎事实也入账
+    newFacts.forEach(t => state.memories.push({ time: stamp, text: t.trim(), _kind: 'fact' }));
     state.memories = state.memories.slice(-50);
     state.summary = newSummary;
     state.summaryBoundary += SUMMARY_CHUNK;
     saveState();
+    // ponytail: 给开发期留个一眼能看清的 trace —— 触发次数 / 提取条数 / 当前记忆总数
+    console.log(`[LTM] 周期 ${cycleNo} 总结完成: +1 摘要快照 +${newFacts.length} facts · 总记忆 ${state.memories.length} 条`);
   } catch (e) {
     console.warn('滚动总结失败（下次聊天时再试）:', e);
   } finally {
     state._summarizing = false;
+  }
+}
+
+// ============ 散碎记忆（随机触发：关键词命中 → 攒到阈值 → 异步抽 fact） ============
+// ponytail: 关键词正则做大类命中，AI 做精准提取；client-side 触发一次只跑 1 轮 API
+const SCATTER_KEYWORDS = /(生日|纪念|约定|答应|决定|打算|计划|准备|记得|记住|不舒服|难受|开心|难过|委屈|崩溃|累|疲惫|想.+?(你|她|他)|最近.+?(在|干|做|忙)|永远|一直|重要|不能|忘记|谢谢|对不起)/;
+function detectScatterFlags(text) {
+  if (!text || typeof text !== 'string') return null;
+  const hits = text.match(SCATTER_KEYWORDS);
+  return hits ? hits[0] : null;
+}
+
+async function maybeScatterExtract() {
+  if (state._scatterExtracting) return;
+  if (!state.primaryModel || (!state.apiKey && !state.workerUrl)) return;
+  if ((state._scatterFlags || 0) < SCATTER_FLAGS_THRESHOLD) return;
+  // 抓最近 ~30 条作为本轮散碎事实提取的样本
+  const sample = state.messages.slice(-60);
+  const sampleText = sample.map(m => `[${m.role}] ${m.text || ''}`).join('\n').slice(0, 4000);
+  if (!sampleText.trim()) return;
+
+  state._scatterExtracting = true;
+  state._scatterFlags = 0; // 重置计数（不管成败都不重复触发）
+  try {
+    const opts = { system: SCATTER_SYSTEM_PROMPT, maxTokens: 800, background: true };
+    let msg;
+    try {
+      msg = await callAPI([{ role: 'user', content: `请从下面这段对话里挑出真正值得记的散碎事实：\n\n${sampleText}` }], state.primaryModel, null, opts);
+    } catch (e) {
+      if (state.fallbackModel) {
+        msg = await callAPI([{ role: 'user', content: `请从下面这段对话里挑出真正值得记的散碎事实：\n\n${sampleText}` }], state.fallbackModel, null, opts);
+      } else {
+        throw e;
+      }
+    }
+    const raw = msg.content || '';
+    let facts = [];
+    for (const cand of extractJSONCandidates(raw)) {
+      const p = tryParseJSON(cand);
+      if (p && Array.isArray(p.facts)) {
+        facts = p.facts.filter(x => typeof x === 'string' && x.trim()).slice(0, 5);
+        break;
+      }
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    facts.forEach(t => state.memories.push({ time: stamp, text: t.trim(), _kind: 'fact' }));
+    if (facts.length) {
+      state.memories = state.memories.slice(-50);
+      saveState();
+      console.log(`[LTM] 散碎记忆提取: +${facts.length} 条`);
+    }
+  } catch (e) {
+    console.warn('散碎记忆提取失败（下次再说）:', e);
+  } finally {
+    state._scatterExtracting = false;
   }
 }
 
@@ -2006,6 +2086,15 @@ async function sendMessage() {
 
     // ★ 滚动总结：够 20 条（10 轮）就在后台悄悄总结（fire-and-forget，不挡聊天）
     maybeRollSummary();
+
+    // ★ 散碎记忆：本次 user 输入若命中关键词 → +1 flag → 攒到阈值后异步抽 fact
+    try {
+      const lastUser = [...state.messages].reverse().find(m => m.role === 'user' && !m.pending && m.type === 'text');
+      if (lastUser && detectScatterFlags(lastUser.text)) {
+        state._scatterFlags = (state._scatterFlags || 0) + 1;
+        maybeScatterExtract();
+      }
+    } catch (_) { /* 散碎探测失败不影响主聊天 */ }
   } catch (e) {
     if (e.name !== 'AbortError') {
       state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
