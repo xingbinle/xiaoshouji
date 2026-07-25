@@ -49,6 +49,16 @@
     <path d="M2.5 11.5 L21 3 L18.5 21.5 L13.5 13.5 Z" fill="currentColor"/>
     <path d="M13.5 13.5 L21 3" stroke="white" stroke-width="1" fill="none" opacity="0.3"/>
   </symbol>
+  <!-- 用户（账号页标题用） -->
+  <symbol id="i-user" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4" fill="currentColor"/>
+    <path d="M4 21 C4 16 8 14 12 14 C16 14 20 16 20 21 Z" fill="currentColor"/>
+  </symbol>
+  <!-- 编辑（铅笔） -->
+  <symbol id="i-edit" viewBox="0 0 24 24">
+    <path d="M4 17 L4 20 L7 20 L18.5 8.5 L15.5 5.5 Z" fill="currentColor"/>
+    <path d="M16.5 4.5 L19.5 7.5 L21.5 5.5 C22 5 22 4 21.5 3.5 L20.5 2.5 C20 2 19 2 18.5 2.5 Z" fill="currentColor"/>
+  </symbol>
   <!-- 停止（实心方块） -->
   <symbol id="i-stop" viewBox="0 0 24 24">
     <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
@@ -611,7 +621,78 @@
           <span class="mp-menu-label">像素小怪兽 · 互动彩蛋</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <button class="mp-menu-item" data-mp="security">
+          <span class="mp-menu-emoji">🔐</span>
+          <span class="mp-menu-label">账号与安全（密码 · 用户名）</span>
+          <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
+        </button>
         <div class="mp-version" id="mpVersion"></div>
+      </div>
+
+      <!-- 账号与安全：密码管理 + 用户名编辑入口 -->
+      <div class="mp-page" id="mpPage-security" hidden>
+        <!-- 密码状态 -->
+        <div class="settings-group">
+          <div class="settings-group-title">
+            <svg class="icon"><use href="#i-lock-shield"/></svg>
+            主密码
+          </div>
+          <div class="field-hint" id="secPwStatus" style="font-size:13px; font-weight:600; padding:8px 12px; background:var(--paper-2); border-radius:var(--r-sm); border:1px solid var(--line-soft);"></div>
+          <div class="button-row">
+            <button class="btn-primary" id="secChangePwBtn">
+              <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
+              修改密码
+            </button>
+            <button class="btn-secondary" id="secSetupPwBtn">
+              <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
+              设置密码
+            </button>
+            <button class="btn-secondary" id="secLockNowBtn">
+              <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
+              立即锁定
+            </button>
+          </div>
+
+          <!-- 修改密码内嵌表单（默认隐藏） -->
+          <div id="secChangePwPanel" hidden style="margin-top:16px; padding:14px; background:var(--paper-2); border:1px solid var(--sky); border-radius:var(--r-md);">
+            <div class="field-hint" style="color:var(--ink-soft); margin-bottom:10px;">修改密码：先输旧密码确认你是主人，再设新密码</div>
+            <label class="field">
+              <span class="field-label">旧密码</span>
+              <input type="password" id="secPwOld" class="field-input" placeholder="当前主密码" autocomplete="current-password">
+            </label>
+            <label class="field">
+              <span class="field-label">新密码</span>
+              <input type="password" id="secPwNew" class="field-input" placeholder="至少 6 位，建议字母+数字" autocomplete="new-password">
+              <div class="lock-strength" style="margin-top:6px;">
+                <div class="lock-strength-bar"><div class="lock-strength-fill" id="secPwStrengthFill"></div></div>
+                <span class="lock-strength-text" id="secPwStrengthText"></span>
+              </div>
+            </label>
+            <label class="field">
+              <span class="field-label">再输一次新密码</span>
+              <input type="password" id="secPwNew2" class="field-input" placeholder="确认新密码" autocomplete="new-password">
+            </label>
+            <div id="secPwSaveMsg" class="field-hint" style="font-weight:600; min-height:18px;"></div>
+            <div class="button-row">
+              <button class="btn-secondary" id="secPwCancelBtn">取消</button>
+              <button class="btn-primary" id="secPwSaveBtn">🔐 保存新密码</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 用户名 / 头像 / 简介 -->
+        <div class="settings-group">
+          <div class="settings-group-title">
+            <svg class="icon"><use href="#i-user"/></svg>
+            我的账号信息
+          </div>
+          <div class="field-hint">设置后，AI 会用这个名字称呼你（"用户"只是占位）</div>
+          <div id="secUserPreview" style="padding:10px 12px; background:var(--paper-2); border:1px solid var(--line-soft); border-radius:var(--r-md); margin-bottom:10px;"></div>
+          <button class="btn-primary" id="secGoUserBtn">
+            <svg class="icon-sm"><use href="#i-edit"/></svg>
+            修改我的资料（姓名 · 头像 · 简介 · 拍一拍后缀）
+          </button>
+        </div>
       </div>
 
       <!-- 像素小怪兽 · 1:1 官方复刻 + 互动彩蛋专区 -->
@@ -847,6 +928,15 @@
       <div class="mp-page" id="mpPage-debug" hidden>
         <div class="settings-group">
           <span class="field-hint">顺序应为：① 核心提示词/破限 → ② 世界书 → ③ 角色卡 → ④ 用户设定 → ⑤ 聊天历史 → ⑥ 当前消息</span>
+          <div class="field-hint" style="color:var(--sky-deep); font-weight:600;">
+            ⚠️ 下方"…（共 N 字，截断显示）"<b>只是显示截断防卡顿</b>，<b>实际发给 AI 的报文是完整版</b>，不会少一个字符。
+          </div>
+          <div class="button-row" style="margin-bottom: 10px;">
+            <button class="btn-secondary" id="debugCopyBtn">
+              <svg class="icon-sm"><use href="#i-copy"/></svg>
+              复制完整 JSON（不受显示截断影响）
+            </button>
+          </div>
           <pre id="debugPayload" class="debug-payload"></pre>
         </div>
       </div>

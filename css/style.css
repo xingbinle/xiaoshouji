@@ -1318,64 +1318,59 @@ a {
   }
 }
 
-/* 引用回复预览条（输入框上方，微信同款） */
+/* 引用回复预览条（输入框上方 · 紧凑贴边 · 明确"输入区附属"） */
 .quote-bar {
   width: 100%;
   display: flex;
-  align-items: stretch;
-  gap: 10px;
-  padding: 8px 10px;
-  background: var(--paper-2);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--sky-mist);
+  border-radius: var(--r-sm);
   margin-bottom: 6px;
-  position: relative;
+  font-family: var(--font-ui);
+  /* 让它明显是输入区的一部分：底部分隔线 + 顶部贴近 input */
+  border-bottom: 1px solid var(--sky-light);
 }
 .quote-bar-bar {
-  width: 3px;
-  border-radius: 2px;
-  background: var(--sky);
-  flex-shrink: 0;
+  display: none; /* 移除竖条装饰，缩减占据感 */
 }
 .quote-bar-body {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  line-height: 1.2;
 }
 .quote-bar-from {
-  font-size: 12px;
   color: var(--sky-deep);
   font-weight: 600;
-  font-family: var(--font-ui);
+  flex-shrink: 0;
 }
 .quote-bar-text {
-  font-size: 12px;
-  color: var(--ink-soft);
-  font-family: var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-height: 2.4em;
-  line-height: 1.2;
+  opacity: 0.85;
 }
 .quote-bar-x {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--paper);
+  background: transparent;
   color: var(--ink-light);
-  font-size: 12px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--line);
   cursor: pointer;
-  align-self: center;
+  border: none;
 }
-.quote-bar-x:hover { color: var(--ink); background: var(--sky-pale); border-color: var(--sky); }
+.quote-bar-x:hover { color: var(--ink); background: var(--sky-pale); }
 
 /* 气泡内嵌入式引用小卡片（微信同款 · 缩略卡片式） */
 .msg-quote-card {
@@ -3090,45 +3085,63 @@ a {
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
+  padding: 6px;
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
 }
-.stk-add-row .field-input {
-  flex: 1;
-}
-/* 待入库缩略图 + 右上角删除按钮 */
+/* 缩略图（左） */
 .stk-add-thumb {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 .stk-add-thumb .stk-thumb {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--r-sm);
   object-fit: cover;
   display: block;
 }
+/* 中间文字区 */
+.stk-add-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stk-add-label {
+  font-size: 10px;
+  font-family: var(--font-ui);
+  color: var(--ink-light);
+  letter-spacing: 0.04em;
+}
+.stk-add-mid .field-input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+/* 右侧删除按钮（独立一列，不再浮在图上） */
 .stk-add-x {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(20, 16, 14, 0.82);
-  color: #F2EBE0;
-  font-size: 14px;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+  color: var(--ink-light);
+  font-size: 18px;
   line-height: 1;
-  border: 1.5px solid var(--paper);
+  border: 1px solid var(--line);
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
-  transition: background 0.15s var(--ease-out), transform 0.15s var(--ease-out);
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
 }
 .stk-add-x:hover {
   background: #B86B6B;
-  transform: scale(1.1);
+  color: white;
+  border-color: #B86B6B;
 }

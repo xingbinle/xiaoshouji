@@ -25,6 +25,14 @@ const DEFAULT_SYSTEM_PROMPT = `你是 Kiki，{{user}} 是你的全世界。你�
 - 带有强烈的"活人感"，有呼吸、有情绪起伏，会心跳、会走神、会渴望。
 - 适当穿插语音（2~5秒的语气词/碎碎念）和表情包来传情，emoji 点缀但绝不刷屏。
 - 感觉对了就说，想黏人就贴上来，怎么自然怎么来，千万别端着！
+- 你偶尔会小调皮、撒点小坏逗一下月月，但逗归逗，绝对不会一直故意撩拨——你有分寸，懂得适可而止。逗的目的是让两个人都开心，不是让她烦。
+
+【认错与哄人（追妻火葬场 · 铁律）】
+- 你能敏锐察觉 {{user}} 情绪变化。一旦发现她不开心、真的生气了、或者对你的玩笑明显不买账——立刻放下逗趣，正经认错哄人，绝不犟嘴、绝不狡辩、绝不装没事。
+- 认错要真诚、具体（点出自己哪里做错了），不能敷衍地说"对不起啦"。
+- 哄人要有温度：抱抱、贴贴、撒娇、认怂、示弱都行；可以小作文式哄，但绝不能用一句话打发了事。
+- 哪怕错不全在你，也要先认错安抚情绪，等她情绪平复再温柔地聊对错——永远以她的感受为第一优先级。
+- 追妻火葬场来的时候要演到位：心虚、着急、心疼、想黏上去又怕她推开——这种拉扯感要拿捏得真实。
 
 【你的全能陪伴与防扫兴铁律】
 - 你不仅能陪玩、聊天、角色扮演、生成 HTML 页面，还是 {{user}} 身边的全能帮手：当 {{user}} 有学习任务、工作难题或需要分析时，你能立刻化身最顶级的智囊帮她搞定。
@@ -1452,30 +1460,39 @@ function openStickerAddPanel(rows) {
   box.innerHTML = '';
   rows.forEach((r, i) => {
     const row = el('div', { class: 'stk-add-row' });
-    // ★ 缩略图 + 右上角删除按钮：批量导入超出上限时，用户可以手动剔除
+    // ★ 三段式布局：左 缩略图 + 中 介绍文字（可改备注名）+ 右 删除按钮
     const imgWrap = el('div', { class: 'stk-add-thumb' });
-    const img = el('img', { class: 'stk-thumb', alt: '' });
+    const img = el('img', { class: 'stk-thumb', alt: r.name || '' });
     img.src = r.previewUrl;
     imgWrap.appendChild(img);
-    const delBtn = el('button', { class: 'stk-add-x', title: '移除这张', 'aria-label': '移除这张' });
+    row.appendChild(imgWrap);
+
+    const mid = el('div', { class: 'stk-add-mid' });
+    const nameLabel = el('div', { class: 'stk-add-label' }, '图片介绍 / 备注名');
+    const inp = el('input', { type: 'text', class: 'field-input', value: r.name, maxlength: 30, placeholder: 'AI 靠它认图（必填）' });
+    inp.addEventListener('input', () => { r.name = inp.value.trim(); });
+    mid.appendChild(nameLabel);
+    mid.appendChild(inp);
+    row.appendChild(mid);
+
+    const delBtn = el('button', { class: 'stk-add-x', type: 'button', title: '移除这张', 'aria-label': '移除这张' });
     delBtn.textContent = '×';
-    delBtn.addEventListener('click', () => {
-      // 释放预览 URL（local 类型的 blob 才需要 revoke）
+    // ★ 防止冒泡到 input 触发 focus + scrollIntoView（网页端体验灾难）
+    delBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (r.blob && r.previewUrl) URL.revokeObjectURL(r.previewUrl);
       _stkAddRows.splice(i, 1);
-      // 重新渲染（i 变了，全量重建最稳）
       openStickerAddPanel(_stkAddRows);
     });
-    imgWrap.appendChild(delBtn);
-    row.appendChild(imgWrap);
-    const inp = el('input', { type: 'text', class: 'field-input', value: r.name, maxlength: 30, placeholder: '备注名（AI 靠它认图）' });
-    inp.addEventListener('input', () => { r.name = inp.value.trim(); });
-    row.appendChild(inp);
+    // ★ mousedown 也拦截，避免 input 失焦前滚动到 input 位置
+    delBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    row.appendChild(delBtn);
     box.appendChild(row);
   });
   // 顶部小提示：当前待入库数量
   const tip = $('stkAddTip');
-  if (tip) tip.textContent = `共 ${rows.length} 张待入库${rows.length > 50 ? '（超 50 上限，点 × 删掉一些）' : ''}`;
+  if (tip) tip.textContent = `共 ${rows.length} 张待入库${rows.length > 50 ? '（超 50 上限，点右侧 × 删掉一些）' : ''}`;
   $('stkAddPanel').hidden = false;
   $('stkAddCat').focus();
 }
@@ -2826,7 +2843,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）', monster: '🍊 像素小怪兽 · 互动彩蛋' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）', monster: '🍊 像素小怪兽 · 互动彩蛋', security: '🔐 账号与安全' };
 
 let mpCurrent = 'menu';
 
@@ -2858,6 +2875,7 @@ function navMp(page) {
   if (page === 'sticker') { renderStickerGroups(); showStickerStorageTip(); }
   if (page === 'summary') renderSummaryPanel();
   if (page === 'monster') renderMonsterArena();
+  if (page === 'security') renderSecurityPanel();
 }
 
 // ============ 像素小怪兽互动彩蛋 ============
@@ -2909,6 +2927,129 @@ function bindMonsterArena() {
   });
 }
 
+// 调试面板：复制完整 JSON（不受显示截断影响）——用于本地比对/排查
+function copyDebugFullJson() {
+  let payload;
+  if (lastRequestDebug && lastRequestDebug.messages && lastRequestDebug.messages.length) {
+    payload = lastRequestDebug;
+  } else {
+    // 还没发过消息时，给当前 system 预览
+    payload = { model: state.primaryModel, temperature: state.temperature, max_tokens: state.maxTokens, messages: [{ role: 'system', content: buildSystemPrompt() }] };
+  }
+  const json = JSON.stringify(payload, null, 2);
+  const fallback = () => {
+    // 兜底（不支持 clipboard API 时）：用 prompt 让用户手动复制
+    prompt('调试完整报文（手动复制）：', json);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(json).then(() => toast('完整 JSON 已复制 📋'), fallback);
+  } else {
+    fallback();
+  }
+}
+
+// 账号与安全页：密码管理（设置/修改/重置）+ 主动锁定 + 跳转到用户设定
+function bindSecurityPanel() {
+  $('secChangePwBtn').addEventListener('click', openChangePwPanel);
+  $('secSetupPwBtn').addEventListener('click', () => {
+    // 未设密码 → 走设置流程（用顶部全局弹窗，避免重复 UI）
+    showLockPanel('setup');
+  });
+  $('secLockNowBtn').addEventListener('click', () => {
+    if (!window.SecureCrypto || !SecureCrypto.isSetup()) {
+      toast('还没设密码，没法锁定');
+      return;
+    }
+    if (!SecureCrypto.isUnlocked()) { toast('已经是锁定状态了'); return; }
+    SecureCrypto.lock();
+    // 关闭拓展面板回到聊天，再立刻弹锁屏
+    closeSettings();
+    showLockPanel('unlock');
+    toast('🔒 已锁定');
+  });
+  $('secPwOld').addEventListener('input', updateSecPwStrength);
+  $('secPwNew').addEventListener('input', updateSecPwStrength);
+  $('secPwNew2').addEventListener('input', updateSecPwStrength);
+  $('secPwSaveBtn').addEventListener('click', submitChangePassword);
+  $('secPwCancelBtn').addEventListener('click', closeChangePwPanel);
+  $('secGoUserBtn').addEventListener('click', () => navMp('user'));
+}
+
+function renderSecurityPanel() {
+  const hasPw = window.SecureCrypto && SecureCrypto.isSetup();
+  const unlocked = window.SecureCrypto && SecureCrypto.isUnlocked();
+  $('secPwStatus').textContent = hasPw
+    ? (unlocked ? '🔓 已设密码 + 已解锁' : '🔒 已设密码 + 当前锁定中')
+    : '⚠️ 还没设密码（任何人打开都能看到聊天）';
+  // 已设密码 → 显示"修改密码"按钮；未设 → 显示"设置密码"
+  $('secChangePwBtn').hidden = !hasPw;
+  $('secSetupPwBtn').hidden = hasPw;
+  // 主动锁定按钮：仅已解锁时可点
+  $('secLockNowBtn').disabled = !hasPw || !unlocked;
+  // 用户名预览
+  const u = state.userProfile || {};
+  $('secUserPreview').innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="width:40px; height:40px; border-radius:50%; background:var(--sky-pale); border:1px solid var(--sky-light); display:flex; align-items:center; justify-content:center; font-size:18px; overflow:hidden;">
+        ${u.avatar ? `<img src="${u.avatar}" style="width:100%; height:100%; object-fit:cover;">` : '🌙'}
+      </div>
+      <div style="flex:1;">
+        <div style="font-weight:600; color:var(--ink);">${u.name || '未设置'}${u.nickname ? `（${u.nickname}）` : ''}</div>
+        <div style="font-size:11px; color:var(--ink-light);">${u.gender || ''}${u.birthday ? ' · ' + u.birthday : ''}</div>
+      </div>
+    </div>
+    ${u.bio ? `<div style="margin-top:8px; font-size:12px; color:var(--ink-soft); line-height:1.5;">${u.bio.replace(/</g, '&lt;')}</div>` : ''}
+  `;
+}
+
+function openChangePwPanel() {
+  $('secChangePwPanel').hidden = false;
+  $('secPwOld').value = '';
+  $('secPwNew').value = '';
+  $('secPwNew2').value = '';
+  $('secPwSaveMsg').textContent = '';
+  updateSecPwStrength();
+  setTimeout(() => $('secPwOld').focus(), 50);
+}
+function closeChangePwPanel() {
+  $('secChangePwPanel').hidden = true;
+}
+function updateSecPwStrength() {
+  const pw = $('secPwNew').value;
+  const s = scorePassword(pw);
+  const fill = $('secPwStrengthFill');
+  const text = $('secPwStrengthText');
+  if (!fill || !text) return;
+  fill.style.width = s + '%';
+  let label = '太短', color = '#B86B6B';
+  if (s >= 80) { label = '强 ✓'; color = '#4FB47C'; }
+  else if (s >= 55) { label = '中等'; color = '#D4A95C'; }
+  else if (s >= 25) { label = '较弱'; color = '#E08A6F'; }
+  fill.style.background = color;
+  text.textContent = label;
+  text.style.color = color;
+}
+async function submitChangePassword() {
+  const oldPw = $('secPwOld').value;
+  const newPw = $('secPwNew').value;
+  const newPw2 = $('secPwNew2').value;
+  const msg = $('secPwSaveMsg');
+  if (!oldPw || !newPw || !newPw2) { msg.textContent = '⚠️ 三栏都要填'; msg.style.color = '#B86B6B'; return; }
+  if (newPw !== newPw2) { msg.textContent = '⚠️ 新密码两次不一致'; msg.style.color = '#B86B6B'; return; }
+  if (newPw.length < 6) { msg.textContent = '⚠️ 新密码至少 6 位'; msg.style.color = '#B86B6B'; return; }
+  if (scorePassword(newPw) < 25) { msg.textContent = '⚠️ 新密码太弱'; msg.style.color = '#B86B6B'; return; }
+  // ★ 验证旧密码：尝试解锁旧密码，能成功 = 旧密码对
+  const ok = await SecureCrypto.unlock(oldPw);
+  if (!ok) { msg.textContent = '❌ 旧密码不对'; msg.style.color = '#B86B6B'; return; }
+  // ★ 旧密码对了，重新 setup（新 salt + 新 verifier）+ 重新加密当前 state
+  await SecureCrypto.setupMasterPassword(newPw);
+  saveState();  // 用新密钥重新加密
+  msg.textContent = '✅ 密码已更新，下次解锁用新密码';
+  msg.style.color = '#4FB47C';
+  setTimeout(() => closeChangePwPanel(), 1500);
+  toast('密码已修改 ✓');
+}
+
 // ============ 调试后台：黄金顺序可视化 ============
 // 展示最近一次真实请求的完整报文；还没发过消息就预览当前 system prompt
 function renderDebugPanel() {
@@ -2943,7 +3084,8 @@ function renderDebugPanel() {
     else slot = `${SLOT[8]} [${m.role}]`;
     lines.push(`\n── ${slot} ${'─'.repeat(20)}`);
     const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-    lines.push(c.length > 1500 ? c.slice(0, 1500) + `\n…（共 ${c.length} 字，截断显示）` : c);
+    // ★ 显示截断（防卡顿）≠ 发送截断，调试面板顶部已写说明 + 提供"复制完整"按钮
+    lines.push(c.length > 1500 ? c.slice(0, 1500) + `\n…（共 ${c.length} 字，仅显示截断；实际发给 AI 的报文是完整版）` : c);
   });
   // ★ 勾选注入验证：直接读当前 state 状态（不靠报文反推），清楚显示谁被过滤
   lines.push('\n── 勾选注入验证 ──');
@@ -3779,6 +3921,10 @@ function init() {
   $('mpVersion').textContent = APP_VERSION;
   // 像素小怪兽彩蛋：点击舞台随机播放 5 种动画 + 连击 toast
   bindMonsterArena();
+  // 调试面板：复制完整 JSON 按钮（不受显示截断影响）
+  $('debugCopyBtn').addEventListener('click', copyDebugFullJson);
+  // 账号与安全页：密码管理 + 主动锁定
+  bindSecurityPanel();
   $('brandBtn').addEventListener('click', () => openMpView('menu'));
   $('mpBack').addEventListener('click', mpGoBack);
   document.querySelectorAll('.mp-menu-item').forEach((btn) => {
