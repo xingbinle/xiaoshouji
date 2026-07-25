@@ -1,6 +1,6 @@
 /* 第三期功能自检测试（node test-phase3.js）
-   覆盖：端到端加密模块 SecureCrypto（AES-GCM 256 + PBKDF2-SHA256）
-   关键场景：设置/解锁/错误密码/密文循环/不同密码不同密文 */
+   覆盖：单用户固定 PIN 加密模块 SecureCrypto
+   关键场景：单 PIN 解锁 / 错误 PIN / 密文循环 / 篡改检测 */
 
 const fs = require('fs');
 const { webcrypto } = require('crypto');
@@ -17,7 +17,7 @@ const mod = { exports: {} };
 new Function('module', 'exports', 'require', src)(mod, mod.exports, require);
 const Sec = mod.exports;
 
-// localStorage 简易 mock（每个测试用例新建一份避免污染）
+// localStorage 简易 mock
 function makeLS() {
   const data = {};
   return {
@@ -34,32 +34,35 @@ function check(name, cond) {
 }
 
 async function run() {
-  // ========== 1. 初次状态：未设置 ==========
+  // ========== 1. 初次状态 ==========
   global.localStorage = makeLS();
   check('初始 isSetup() = false', Sec.isSetup() === false);
   check('初始 isUnlocked() = false', Sec.isUnlocked() === false);
 
-  // ========== 2. setupMasterPassword：写入 verifier + 自动解锁 ==========
-  await Sec.setupMasterPassword('月月123');
-  check('setup 后 isSetup() = true', Sec.isSetup() === true);
-  check('setup 后 isUnlocked() = true', Sec.isUnlocked() === true);
+  // ========== 2. ensureSetup：写入 verifier + 自动解锁 ==========
+  await Sec.ensureSetup();
+  check('ensureSetup 后 isSetup() = true', Sec.isSetup() === true);
+  check('ensureSetup 后 isUnlocked() = true', Sec.isUnlocked() === true);
 
-  // ========== 3. lock 后重新解锁 ==========
+  // ========== 3. lock + 正确 PIN 解锁 ==========
   Sec.lock();
   check('lock 后 isUnlocked() = false', Sec.isUnlocked() === false);
 
-  const ok1 = await Sec.unlock('月月123');
-  check('正确密码解锁成功', ok1 === true);
+  // 真实 PIN（硬编码常量）
+  const REAL_PIN = Buffer.from('MDYxMDE2', 'base64').toString('utf8'); // 061016
+  const ok1 = await Sec.unlock(REAL_PIN);
+  check('正确 PIN 解锁成功', ok1 === true);
   check('解锁后 isUnlocked() = true', Sec.isUnlocked() === true);
 
-  const ok2 = await Sec.unlock('月月124');
-  check('错误密码解锁失败', ok2 === false);
-  check('错误密码后仍 isUnlocked() = false', Sec.isUnlocked() === false);
+  // ========== 4. 错误 PIN 必须失败 ==========
+  const ok2 = await Sec.unlock('061017');
+  check('错误 PIN 解锁失败', ok2 === false);
+  check('错误 PIN 后 isUnlocked() = false', Sec.isUnlocked() === false);
 
-  // 重新用对的密码解锁（为后续测试）
-  await Sec.unlock('月月123');
+  // 重新解锁（为后续测试）
+  await Sec.unlock(REAL_PIN);
 
-  // ========== 4. encryptState / decryptState 循环还原 ==========
+  // ========== 5. encryptState / decryptState 循环还原 ==========
   const sampleState = {
     messages: [{ role: 'user', text: '你好' }, { role: 'ai', text: '月月好~' }],
     summary: '她喜欢喝奶茶',
@@ -79,41 +82,30 @@ async function run() {
   check('decryptState 解出 memories[0].text', dec.memories[0].text === '猫叫小克');
   check('decryptState 解出 apiKey', dec.apiKey === 'sk-secret-12345');
 
-  // ========== 5. 不同 salt → 不同密文（同一明文） ==========
-  Sec.lock();
-  await Sec.setupMasterPassword('password-A');
-  const encA = await Sec.encryptState({ hello: 'world' });
-  Sec.lock();
-  // 完全独立的 setup（salt 必然不同）
-  global.localStorage = makeLS();
-  await Sec.setupMasterPassword('password-B');
-  const encB = await Sec.encryptState({ hello: 'world' });
-  check('不同 setup 出来的密文 iv 不同', encA.iv !== encB.iv);
-  check('不同 setup 出来的密文 ct 不同', encA.ct !== encB.ct);
+  // ========== 6. 同 PIN 多次加密 iv 不同（随机 IV 必不同） ==========
+  const enc2 = await Sec.encryptState({ hello: 'world' });
+  check('同 PIN 两次加密 iv 不同', enc.iv !== enc2.iv);
+  check('同 PIN 两次加密 ct 不同（IV 变了 → ct 也变）', enc.ct !== enc2.ct);
 
-  // ========== 6. 篡改密文 → GCM 校验失败 ==========
-  Sec.lock();
-  await Sec.unlock('password-A').catch(() => {});
-  // 拿到 encA 的密文，把 ct 改一个字节
-  const tampered = { iv: encA.iv, ct: encA.ct.slice(0, -2) + (encA.ct.slice(-2) === 'AA' ? 'BB' : 'AA') };
+  // ========== 7. 篡改密文 → GCM 校验失败 ==========
+  const tampered = { iv: enc.iv, ct: enc.ct.slice(0, -2) + (enc.ct.slice(-2) === 'AA' ? 'BB' : 'AA') };
   let tamperErr = null;
   try { await Sec.decryptState(tampered); } catch (e) { tamperErr = e; }
   check('篡改密文触发 GCM 解密失败', tamperErr !== null);
 
-  // ========== 7. 未解锁时调用 encryptState 应抛错 ==========
+  // ========== 8. 未解锁时调用 encryptState 应抛错 ==========
   Sec.lock();
   let lockedErr = null;
   try { await Sec.encryptState({ a: 1 }); } catch (e) { lockedErr = e; }
   check('未解锁 encryptState 抛错', lockedErr !== null);
 
-  // ========== 8. 解锁后调 setupMasterPassword 应能覆盖旧 verifier ==========
-  await Sec.unlock('password-A');
+  // ========== 9. 跨会话解锁：重建 localStorage + 重新 unlock ==========
+  //   验证固定 PIN + 固定 salt 在新会话中能正常解锁
+  global.localStorage = makeLS();
+  await Sec.ensureSetup();
   Sec.lock();
-  await Sec.setupMasterPassword('password-A-new');
-  const oldOk = await Sec.unlock('password-A');
-  check('旧密码在新 setup 后失败', oldOk === false);
-  const newOk = await Sec.unlock('password-A-new');
-  check('新密码能解锁', newOk === true);
+  const crossOk = await Sec.unlock(REAL_PIN);
+  check('跨会话用正确 PIN 仍能解锁', crossOk === true);
 
   console.log(`\n完成：${failures === 0 ? '✅ 全部通过' : '❌ ' + failures + ' 项失败'}`);
   process.exit(failures === 0 ? 0 : 1);

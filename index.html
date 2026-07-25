@@ -629,24 +629,17 @@
         <div class="mp-version" id="mpVersion"></div>
       </div>
 
-      <!-- 账号与安全：账户信息 + 改密码 + 主动锁定 -->
+      <!-- 账号与安全：单一密码（固定） · 主动锁定 · 用户资料 -->
       <div class="mp-page" id="mpPage-security" hidden>
-        <!-- 账户 / 密码状态 -->
+        <!-- 锁定状态 -->
         <div class="settings-group">
           <div class="settings-group-title">
             <svg class="icon"><use href="#i-lock-shield"/></svg>
-            账户与密码
+            加密锁定
           </div>
           <div id="secPwStatus" style="font-size:13px; font-weight:600; padding:10px 12px; background:var(--paper-2); border-radius:var(--r-sm); border:1px solid var(--line-soft); line-height:1.7;"></div>
+          <div class="field-hint" style="margin-top:8px;">6 位 PIN 锁屏是固定密码（已硬编码），只能锁定不能改不能重置。</div>
           <div class="button-row" style="margin-top:10px;">
-            <button class="btn-primary" id="secChangePwBtn">
-              <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
-              修改密码
-            </button>
-            <button class="btn-secondary" id="secSetupPwBtn">
-              <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
-              设置密码
-            </button>
             <button class="btn-secondary" id="secLockNowBtn">
               <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
               立即锁定
@@ -988,43 +981,13 @@
         </button>
       </div>
 
-      <!-- 底部：忘记密码（仅解锁态可见） -->
+      <!-- 底部：留空（单一密码模式 · 无重置入口） -->
       <div class="iphone-lock-foot">
-        <button class="iphone-lock-link" id="iphoneForgot" type="button" hidden>忘记密码？</button>
       </div>
     </div>
   </div>
 
-  <!-- 改密码弹层（沿用锁屏风格 · 安全页里点"修改密码"触发） -->
-  <div class="pin-change-panel" id="pinChangePanel" hidden>
-    <div class="pin-change-box">
-      <div class="pin-change-title" id="pinChangeTitle">修改密码</div>
-      <div class="pin-change-desc" id="pinChangeDesc">先输当前 6 位密码</div>
-      <div class="iphone-lock-dots pin-change-dots" id="pinChangeDots">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
-      </div>
-      <div class="iphone-lock-pad pin-change-pad" id="pinChangePad">
-        <button class="pad-key" data-num="1" type="button"><span class="pad-num">1</span></button>
-        <button class="pad-key" data-num="2" type="button"><span class="pad-num">2</span><span class="pad-sub">ABC</span></button>
-        <button class="pad-key" data-num="3" type="button"><span class="pad-num">3</span><span class="pad-sub">DEF</span></button>
-        <button class="pad-key" data-num="4" type="button"><span class="pad-num">4</span><span class="pad-sub">GHI</span></button>
-        <button class="pad-key" data-num="5" type="button"><span class="pad-num">5</span><span class="pad-sub">JKL</span></button>
-        <button class="pad-key" data-num="6" type="button"><span class="pad-num">6</span><span class="pad-sub">MNO</span></button>
-        <button class="pad-key" data-num="7" type="button"><span class="pad-num">7</span><span class="pad-sub">PQRS</span></button>
-        <button class="pad-key" data-num="8" type="button"><span class="pad-num">8</span><span class="pad-sub">TUV</span></button>
-        <button class="pad-key" data-num="9" type="button"><span class="pad-num">9</span><span class="pad-sub">WXYZ</span></button>
-        <button class="pad-key pad-blank" type="button" disabled aria-hidden="true"></button>
-        <button class="pad-key" data-num="0" type="button"><span class="pad-num">0</span></button>
-        <button class="pad-key pad-back" data-num="del" type="button" aria-label="删除一位">
-          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x"/></svg>
-        </button>
-      </div>
-      <div class="pin-change-msg" id="pinChangeMsg"></div>
-      <div class="pin-change-buttons">
-        <button class="btn-secondary" id="pinChangeCancel" type="button">取消</button>
-      </div>
-    </div>
-  </div>
+  <!-- pinChangePanel 已删除（单一密码模式 · 无重置入口） -->
 
   <div class="help-panel" id="workerHelpPanel" hidden>
     <div class="help-mask" id="helpMask"></div>

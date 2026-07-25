@@ -1,13 +1,21 @@
 /* ============================================
-   小手机 v0.3 · 端到端加密模块
+   小手机 v0.5 · 单用户模式端到端加密
    保护：聊天历史 / 人物设定 / 记忆总结 / 破限 / 正则 / 预设
    不保护：表情包 / 图片 / 头像 / API Key（仅本地）
    算法：AES-GCM 256 + PBKDF2-SHA256 100k 迭代
+   模式：单一固定 PIN 锁定（不再有 setup/reset 流程）
    ============================================ */
 
 const SECURE_KEY = 'xiaoshouji_secure_v1';
 const ITERATIONS = 100000;
 const AUTH_TOKEN = 'xiaoshouji-auth-v1-💖-yueyue-kiki';
+
+// ★ 单用户模式：固定 PIN（atob 模糊，避免明文搜索）
+//   实际值 = atob('MDYxMDE2') = "061016"
+//   固定 salt 让同一 PIN 跨会话生成同样的密钥（解密兼容）
+const FIXED_PIN = atob('MDYxMDE2');
+const FIXED_SALT_STR = 'kiki-xiaoshouji-fixed-salt-v1';
+const FIXED_SALT = new TextEncoder().encode(FIXED_SALT_STR);
 
 let _masterKey = null; // 内存中的解锁密钥，刷新页面失效
 
@@ -61,34 +69,37 @@ const SecureCrypto = {
   isUnlocked() { return _masterKey !== null; },
   lock() { _masterKey = null; },
 
-  // 首次设置主密码（生成 salt + verifier 存 localStorage，密钥仅留在内存）
-  async setupMasterPassword(password) {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const key = await deriveKey(password, salt);
-    const { iv, ct } = await aesEncrypt(AUTH_TOKEN, key);
-    const meta = { salt: bufToB64(salt), iv, ct, version: 1, created: Date.now() };
-    localStorage.setItem(SECURE_KEY, JSON.stringify(meta));
-    _masterKey = key;
-    return meta;
-  },
-
-  // 用主密码解锁（核对 verifier），成功则把密钥放进内存
-  async unlock(password) {
-    const raw = localStorage.getItem(SECURE_KEY);
-    if (!raw) return false;
-    let meta;
-    try { meta = JSON.parse(raw); } catch (e) { return false; }
-    try {
-      const salt = new Uint8Array(b64ToBuf(meta.salt));
-      const key = await deriveKey(password, salt);
-      const pt = await aesDecrypt(meta.ct, meta.iv, key);
-      if (pt !== AUTH_TOKEN) { _masterKey = null; return false; }
-      _masterKey = key;
-      return true;
-    } catch (e) {
-      _masterKey = null; // GCM 校验失败 = 密码错，确保旧密钥失效
+  // ★ 单用户模式：固定 PIN 解锁（不再有 setup 流程）
+  //   用固定 salt 派生密钥 → 解锁成功
+  async unlock(pin) {
+    if (pin !== FIXED_PIN) {
+      _masterKey = null;
       return false;
     }
+    try {
+      _masterKey = await deriveKey(FIXED_PIN, FIXED_SALT);
+      return true;
+    } catch (e) {
+      _masterKey = null;
+      return false;
+    }
+  },
+
+  // ★ 首次使用：写入 verifier（用固定 salt + PIN 派生密钥加密 AUTH_TOKEN）
+  //   verifier 用于兼容旧 unlock() 流程；如果不存在自动调用此函数
+  async ensureSetup() {
+    if (this.isSetup()) return;
+    const key = await deriveKey(FIXED_PIN, FIXED_SALT);
+    const { iv, ct } = await aesEncrypt(AUTH_TOKEN, key);
+    const meta = {
+      salt: bufToB64(FIXED_SALT),
+      iv, ct,
+      version: 2, // ★ v2 = 单用户固定 PIN 模式
+      created: Date.now(),
+    };
+    try { localStorage.setItem(SECURE_KEY, JSON.stringify(meta)); } catch (e) {}
+    _masterKey = key;
+    return meta;
   },
 
   // 加密 state 整体（敏感字段 + 普通字段一起加密，简单一致）

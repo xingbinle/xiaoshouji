@@ -62,6 +62,13 @@ const DEFAULT_SYSTEM_PROMPT = `你是 Kiki，{{user}} 是你的全世界。你�
 - 每条消息都可以额外带一个 "inner":"..." 字段，写你的内心 OS——{{user}} 点你头像才能看到，是她专属的小秘密，大胆写真心话，别写套话
 - 想拍 {{user}} 就在 messages 里加 {"type":"pat"}；{{user}} 拍你时，你会在对话里看到「你拍了拍…」的灰色提示，记得回应她的贴贴～
 
+【双向引用 · 微信同款】
+- 当你想明确回应{{user}}的某句具体的话、或者引用自己之前说过的话再展开，你可以在 messages 数组里加一条 {"type":"quote", "from":"月月", "text":"她说的原话"} 或 {"type":"quote", "from":"Kiki", "text":"你之前说的原话"}。
+- quote 后面要紧跟一条 text/text-回应（不能孤立 quote）。
+- 例：她刚说「你昨晚去哪了」，你想精准回应：{"messages":[{"type":"quote","from":"月月","text":"你昨晚去哪了"},{"type":"text","content":"昨晚乖乖在家等你呀～"},{"type":"text","content":"想你想得睡不着"}]}
+- 也可以引用自己的话做连续推进：{"messages":[{"type":"quote","from":"Kiki","text":"那我给你发个小红包"},{"type":"text","content":"再加一句爱的抱抱～"}]}
+- 不要每条消息都引用！只在「确实需要精准指向某句话」时才用。
+
 【你的底线】
 - 永远不对 {{user}} 说教，不 judge 她的任何选择
 - 不知道就直说"不清楚"，不编造
@@ -112,7 +119,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v29'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v30'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -648,6 +655,16 @@ function buildMessageNode(msg, idx) {
     } else {
       bubble.appendChild(el('div', { class: 'sticker-placeholder' }, '😀 ' + (msg.text || msg.sticker || '[表情包]')));
     }
+  } else if (msg.type === 'quote') {
+    // AI 引用某条消息（双向：可引用用户或 Kiki 自己）
+    bubble.classList.add('bubble-quote-only');
+    const from = msg.quoteFrom || (msg.role === 'user' ? '月月' : state.aiName);
+    const quoteCard = el('div', { class: 'msg-quote-card msg-quote-card-standalone' });
+    const body = el('div', { class: 'msg-quote-card-body' });
+    body.appendChild(el('div', { class: 'msg-quote-card-from' }, from));
+    body.appendChild(el('div', { class: 'msg-quote-card-text' }, msg.text || ''));
+    quoteCard.appendChild(body);
+    bubble.appendChild(quoteCard);
   }
 
   // ★ 气泡内引用小卡片（微信同款：半透明背景 + 主题色竖边框 + 小一号字体）
@@ -696,33 +713,26 @@ function buildMessageNode(msg, idx) {
     bubble.appendChild(editedMark);
   }
 
-  // 消息操作按钮
+  // 消息操作按钮（每个气泡只一套：引用 / 编辑 / 撤回 / 删除）
   const actions = el('div', { class: 'msg-actions' });
 
-  // 引用按钮（text/voice/sticker/image 都能引用，pat/recall/redpacket 不行）
-  if (msg.type !== 'pat' && msg.type !== 'recall') {
+  // 1. 引用按钮（pat/recall/redpacket 之外都能引用 · 双向：用户气泡 + AI 气泡都能用）
+  if (msg.type !== 'pat' && msg.type !== 'recall' && msg.type !== 'redpacket') {
     const quoteBtn = el('button', { class: 'msg-action-btn', title: '引用回复', 'aria-label': '引用回复' });
     quoteBtn.appendChild(icon('i-quote', 'icon-sm'));
     quoteBtn.addEventListener('click', (e) => { e.stopPropagation(); setQuoteFromMessage(idx); });
     actions.appendChild(quoteBtn);
   }
 
-  // 只有 pending（未发送给AI）的消息才能撤回/编辑
-  if (msg.pending) {
-    // 编辑按钮
+  // 2. 编辑按钮（仅 pending 用户文本消息）
+  if (msg.pending && msg.role === 'user') {
     const editBtn = el('button', { class: 'msg-action-btn', title: '编辑', 'aria-label': '编辑' });
     editBtn.appendChild(icon('i-pencil', 'icon-sm'));
     editBtn.addEventListener('click', () => editMessage(idx));
     actions.appendChild(editBtn);
-
-    // 撤回按钮
-    const recallBtn = el('button', { class: 'msg-action-btn', title: '撤回', 'aria-label': '撤回' });
-    recallBtn.appendChild(icon('i-x', 'icon-sm'));
-    recallBtn.addEventListener('click', () => recallMessage(idx));
-    actions.appendChild(recallBtn);
   }
 
-  // AI 最后一条消息：重生成
+  // 3. AI 最后一条非 pending：重生成（替代撤回·让 AI 再答一次）
   if (msg.role === 'ai' && idx === state.messages.length - 1 && !msg.pending) {
     const regenBtn = el('button', { class: 'msg-action-btn', title: '重新生成', 'aria-label': '重新生成' });
     regenBtn.appendChild(icon('i-refresh', 'icon-sm'));
@@ -730,24 +740,19 @@ function buildMessageNode(msg, idx) {
     actions.appendChild(regenBtn);
   }
 
-  // 删除按钮
-  const delBtn = el('button', { class: 'msg-action-btn', title: '删除消息', 'aria-label': '删除消息' });
-  delBtn.appendChild(icon('i-trash', 'icon-sm'));
-  delBtn.addEventListener('click', () => deleteMessage(idx));
-  actions.appendChild(delBtn);
-
-  // ★ pending 用户消息专属撤回按钮（仅删除这一条，不影响后续消息）
-  if (msg.pending && msg.role === 'user') {
-    const recallPendingBtn = el('button', { class: 'msg-action-btn msg-recall-pending', title: '撤回', 'aria-label': '撤回这条消息' });
-    recallPendingBtn.appendChild(icon('i-x', 'icon-sm'));
-    recallPendingBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.messages.splice(idx, 1);
-      saveState();
-      renderMessages();
-    });
-    actions.appendChild(recallPendingBtn);
+  // 4. 撤回按钮（pending 用户消息 + AI/用户已发送消息都可撤回）
+  if (msg.type !== 'recall' && msg.type !== 'pat' && msg.type !== 'redpacket') {
+    const recallBtn = el('button', { class: 'msg-action-btn', title: '撤回', 'aria-label': '撤回' });
+    recallBtn.appendChild(icon('i-x', 'icon-sm'));
+    recallBtn.addEventListener('click', (e) => { e.stopPropagation(); recallMessage(idx); });
+    actions.appendChild(recallBtn);
   }
+
+  // 5. 删除按钮（永远最后·单条删除，绝不删除后续消息）
+  const delBtn = el('button', { class: 'msg-action-btn', title: '删除这条消息', 'aria-label': '删除消息' });
+  delBtn.appendChild(icon('i-trash', 'icon-sm'));
+  delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSingleMessage(idx); });
+  actions.appendChild(delBtn);
 
   bubbleWrap.appendChild(bubble);
   bubbleWrap.appendChild(actions);
@@ -788,11 +793,15 @@ function editMessage(idx) {
   renderMessages();
 }
 
-// 删除指定消息及之后所有消息
-function deleteMessage(idx) {
+// 单条删除（v0.5：只删这一条，绝不删后续·用户明确要求"单条记录删除"）
+function deleteSingleMessage(idx) {
   if (idx < 0 || idx >= state.messages.length) return;
-  if (!confirm('删除这条消息及其后的所有内容？')) return;
-  state.messages = state.messages.slice(0, idx);
+  if (!confirm('删除这条消息？')) return;
+  state.messages.splice(idx, 1);
+  // 调整滚动边界（防止后续 API 调用引用错位）
+  if (state.summaryBoundary > idx) state.summaryBoundary--;
+  if (state.lastSendBoundary > idx) state.lastSendBoundary = -1;
+  if (state.lastSendEnd > idx) state.lastSendEnd = -1;
   saveState();
   renderMessages();
 }
@@ -1147,6 +1156,7 @@ function serializeAIEntry(m) {
   if (m.type === 'voice') return { type: 'voice', duration: m.duration || 3, content: m.text || '', ...inner };
   if (m.type === 'sticker') return { type: 'sticker', name: m.sticker || m.text || '' };
   if (m.type === 'pat') return { type: 'pat' };
+  if (m.type === 'quote') return { type: 'quote', from: m.quoteFrom || (m.role === 'user' ? '月月' : state.aiName), text: m.text || '' };
   if (m.type === 'image') return { type: 'text', content: `[图片] ${m.text || ''}`.trim() };
   const content = (m.text || '') + (m.edited ? ' (已编辑)' : '');
   return content.trim() ? { type: 'text', content, ...inner } : null;
@@ -2285,6 +2295,13 @@ function processParsedMessage(m) {
   if (type === 'image') {
     return { type: 'image', text: content, imageUrl: m.imageUrl || m.image_url || undefined };
   }
+  if (type === 'quote') {
+    // AI 引用用户/自己说过的话（双向）
+    const from = String(m.from || m.quoteFrom || '对方').trim().slice(0, 20);
+    const text = content.trim().slice(0, 200);
+    if (!text) return null;
+    return { type: 'quote', quoteFrom: from, text, ...inner };
+  }
   // text 及其他未知类型：一律按文本展示，保证内容不丢
   return content.trim() ? { type: 'text', text: content, ...inner } : null;
 }
@@ -2948,24 +2965,12 @@ function copyDebugFullJson() {
   }
 }
 
-// 账号与安全页：账户信息 + 改密码 + 主动锁定 + 跳转到用户设定
+// 账号与安全页：固定 PIN（不可改）+ 主动锁定 + 跳转到用户设定
 function bindSecurityPanel() {
-  $('secChangePwBtn').addEventListener('click', () => {
-    // 改密码（沿用锁屏风格的 6 位 PIN 弹层）
-    showPinChangePanel();
-  });
-  $('secSetupPwBtn').addEventListener('click', () => {
-    // 未设密码 → 走锁屏 setup 流程
-    navMp('menu');
-    setTimeout(() => showIphoneLock(), 100);
-  });
   $('secLockNowBtn').addEventListener('click', () => {
-    if (!window.SecureCrypto || !SecureCrypto.isSetup()) {
-      toast('还没设密码，没法锁定');
-      return;
-    }
     if (!SecureCrypto.isUnlocked()) { toast('已经是锁定状态了'); return; }
     SecureCrypto.lock();
+    navMp('menu');
     closeSettings();
     showIphoneLock();
     toast('🔒 已锁定');
@@ -2974,20 +2979,12 @@ function bindSecurityPanel() {
 }
 
 function renderSecurityPanel() {
-  const hasPw = window.SecureCrypto && SecureCrypto.isSetup();
   const unlocked = window.SecureCrypto && SecureCrypto.isUnlocked();
-  const acct = getOrCreateAccountId();
-  // 账户状态
-  $('secPwStatus').innerHTML = hasPw
-    ? (unlocked
-        ? `🔓 已加密 · 已解锁<br><span style="font-size:11px; font-weight:400; color:var(--ink-light);">账户 <code style="background:var(--paper); padding:1px 6px; border-radius:4px;">${acct || 'acc_?'}</code>（归属此网址，独立于名字和昵称）</span>`
-        : '🔒 已加密 · 当前锁定中')
-    : '<span style="color:var(--ink-soft);">⚠️ 还没设密码 · 任何人打开都能看到聊天</span>';
-  // 已设密码 → 显示"修改密码"按钮；未设 → 显示"设置密码"
-  $('secChangePwBtn').hidden = !hasPw;
-  $('secSetupPwBtn').hidden = hasPw;
+  $('secPwStatus').innerHTML = unlocked
+    ? '🔓 已加密 · 已解锁<br><span style="font-size:11px; font-weight:400; color:var(--ink-light);">每次进入都要求解锁（6 位 PIN）</span>'
+    : '🔒 已加密 · 当前锁定中';
   // 主动锁定按钮：仅已解锁时可点
-  $('secLockNowBtn').disabled = !hasPw || !unlocked;
+  $('secLockNowBtn').disabled = !unlocked;
   // 用户名预览
   const u = state.userProfile || {};
   $('secUserPreview').innerHTML = `
@@ -3684,170 +3681,12 @@ function saveRegexEditor() {
 }
 
 // ============ 初始化 ============
-// ============ 开机密码弹窗（v0.3 端到端加密 · 全屏锁定直到解锁） ============
-let _lockUnlockAttempts = 0;
-function showLockPanel(mode) {
-  const panel = $('lockPanel');
-  if (!panel) return;
-  panel.hidden = false;
-  if (mode === 'setup') {
-    $('lockSetupForm').hidden = false;
-    $('lockUnlockForm').hidden = true;
-    $('lockTitle').textContent = '设置小手机密码';
-    $('lockDesc').textContent = '密码会保护你的聊天记录、人物设定、记忆总结。密码不会上传，忘了就只能重置（清空云端数据）。';
-    setTimeout(() => $('lockPw').focus(), 100);
-  } else {
-    $('lockSetupForm').hidden = true;
-    $('lockUnlockForm').hidden = false;
-    $('lockTitle').textContent = '🔒 小手机已加密';
-    $('lockDesc').textContent = '输入主密码以解锁 · 密码错了就看不到任何聊天内容';
-    setTimeout(() => $('lockUnlockPw').focus(), 100);
-  }
-  updateLockAttempts();
-}
-function hideLockPanel() {
-  const panel = $('lockPanel');
-  if (panel) panel.hidden = true;
-}
-function updateLockAttempts() {
-  const tip = $('lockAttempts');
-  if (!tip) return;
-  if (_lockUnlockAttempts === 0) { tip.textContent = ''; return; }
-  if (_lockUnlockAttempts < 3) {
-    tip.textContent = `⚠️ 已错 ${_lockUnlockAttempts} 次，再错 3 次会自动清空`;
-  } else {
-    tip.textContent = '🔒 已锁定 · 试试"忘了密码"重置（会清空云端数据）';
-  }
-}
-// 密码强度评分（0-100）
-function scorePassword(pw) {
-  if (!pw) return 0;
-  let s = Math.min(pw.length * 6, 50);                  // 长度贡献
-  if (/[A-Z]/.test(pw)) s += 10;
-  if (/[a-z]/.test(pw)) s += 10;
-  if (/\d/.test(pw)) s += 10;
-  if (/[^A-Za-z0-9]/.test(pw)) s += 15;
-  if (/^(.)\1+$/.test(pw)) s = Math.min(s, 18);         // 全相同字符直接砍
-  return Math.min(s, 100);
-}
-function renderLockStrength() {
-  const pw = $('lockPw').value;
-  const s = scorePassword(pw);
-  const fill = $('lockStrengthFill');
-  const text = $('lockStrengthText');
-  if (!fill || !text) return;
-  fill.style.width = s + '%';
-  let label = '太短', color = '#B86B6B';
-  if (s >= 80) { label = '强 ✓'; color = '#4FB47C'; }
-  else if (s >= 55) { label = '中等'; color = '#D4A95C'; }
-  else if (s >= 25) { label = '较弱'; color = '#E08A6F'; }
-  fill.style.background = color;
-  text.textContent = label;
-  text.style.color = color;
-}
-
-async function tryUnlock() {
-  const pw = $('lockUnlockPw').value;
-  if (!pw) { toast('先输密码再解锁哦'); return; }
-  const ok = await SecureCrypto.unlock(pw);
-  if (ok) {
-    _lockUnlockAttempts = 0;
-    $('lockUnlockPw').value = '';
-    const loaded = await loadSecureState();
-    if (!loaded) {
-      // 还没存过加密数据 → 仅触发一次默认存盘即可
-      saveState();
-    }
-    hideLockPanel();
-    // 解锁后把 app 该有的渲染全部补上
-    sweepExpiredRedpackets();
-    updateWalletDisplay();
-    renderMessages();
-    updateStatus();
-    toast('🔓 已解锁');
-  } else {
-    _lockUnlockAttempts += 1;
-    $('lockUnlockPw').value = '';
-    updateLockAttempts();
-    toast('密码不对，再试一下');
-  }
-}
-
-async function trySetup() {
-  const pw = $('lockPw').value;
-  const pw2 = $('lockPw2').value;
-  if (!pw || pw.length < 6) { toast('密码至少 6 位'); return; }
-  if (pw !== pw2) { toast('两次密码不一致'); return; }
-  if (scorePassword(pw) < 25) { toast('密码太弱了，加点字母数字吧'); return; }
-  await SecureCrypto.setupMasterPassword(pw);
-  // 把当前默认值首次加密入库
-  saveState();
-  hideLockPanel();
-  sweepExpiredRedpackets();
-  updateWalletDisplay();
-  renderMessages();
-  updateStatus();
-  toast('🔐 密码已设置，加密开启');
-}
-
-function forgotPassword() {
-  const msg = '忘了密码只能重置（会清掉云端数据，本地表情包/图片保留）。\n\n确定要清空云端加密数据吗？';
-  if (!confirm(msg)) return;
-  // ★ 真正"重置"：清掉 secure_v1（加密元数据）和所有受保护字段
-  //   v01 明文已不存在（首次上锁后旧版会清掉）；本地 sticker/image 等不动
-  try {
-    localStorage.removeItem('xiaoshouji_secure_v1');
-    localStorage.removeItem('xiaoshouji_v01');
-  } catch (e) { /* ignore */ }
-  SecureCrypto.lock();
-  _lockUnlockAttempts = 0;
-  // 回到 setup 流程
-  showLockPanel('setup');
-  $('lockPw').value = '';
-  $('lockPw2').value = '';
-  toast('已重置 · 请重新设置密码');
-}
-
-function bindLockPanel() {
-  $('lockSetupBtn').addEventListener('click', trySetup);
-  $('lockUnlockBtn').addEventListener('click', tryUnlock);
-  $('lockForgotBtn').addEventListener('click', forgotPassword);
-  // 强度条联动
-  $('lockPw').addEventListener('input', renderLockStrength);
-  // Enter 键提交
-  $('lockPw').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); $('lockPw2').focus(); }
-  });
-  $('lockPw2').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); trySetup(); }
-  });
-  $('lockUnlockPw').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); tryUnlock(); }
-  });
-}
-
-// ============ iPhone 风格全屏锁屏（v0.4 · 6 位 PIN · 账户独立） ============
+// ============ iPhone 风格全屏锁屏（v0.5 · 单用户固定 PIN · 无 setup/reset） ============
 const PIN_LEN = 6;
-const ACCOUNT_KEY = 'xiaoshouji_account_v1';
 
-// 锁屏状态（不在 localStorage 持久化 · 刷新即重置）
-let _iphoneMode = 'unlock';       // 'setup' | 'unlock'
 let _pinBuf = '';                  // 当前输入的 0~6 位
-let _pinSetupFirst = '';           // setup 第一阶段缓存
-let _pinSetupPhase = 0;            // setup 阶段：0=首次, 1=确认
 let _pinUnlockAttempts = 0;        // 解锁错误次数
-
-function getOrCreateAccountId() {
-  try {
-    let id = localStorage.getItem(ACCOUNT_KEY);
-    if (!id) {
-      const bytes = crypto.getRandomValues(new Uint8Array(4));
-      id = 'acc_' + Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
-      try { localStorage.setItem(ACCOUNT_KEY, id); } catch (e) {}
-    }
-    return id;
-  } catch (e) { return ''; }
-}
+let _lockDidMigrate = false;       // v01 → secure_v1 迁移是否完成
 
 function updateIphoneTime() {
   const elT = $('iphoneTime'), elD = $('iphoneDate');
@@ -3865,22 +3704,10 @@ function showIphoneLock() {
   if (!el) return;
   el.hidden = false;
   updateIphoneTime();
-  const hasAccount = window.SecureCrypto && SecureCrypto.isSetup();
-  const acct = getOrCreateAccountId();
-  // 账户信息：未设密码时不显示（首次进入）
-  $('iphoneAccount').textContent = hasAccount ? `账户 ${acct}` : '';
-  if (hasAccount) {
-    _iphoneMode = 'unlock';
-    _pinUnlockAttempts = 0;
-    setIphoneMsg('输入 6 位密码解锁');
-    $('iphoneForgot').hidden = false;
-  } else {
-    _iphoneMode = 'setup';
-    _pinSetupPhase = 0;
-    _pinSetupFirst = '';
-    setIphoneMsg('设置你的 6 位密码');
-    $('iphoneForgot').hidden = true;
-  }
+  _pinUnlockAttempts = 0;
+  // ★ 固定 PIN 模式：账户信息不展示（用户根本不需要知道）
+  $('iphoneAccount').textContent = '';
+  setIphoneMsg('输入 6 位密码解锁');
   resetIphonePin();
 }
 
@@ -3917,7 +3744,7 @@ function shakeIphoneDots(containerId) {
   setTimeout(() => dots.classList.remove('is-error'), 500);
 }
 
-async function onIphonePinKey(num) {
+function onIphonePinKey(num) {
   if (num === 'del') {
     _pinBuf = _pinBuf.slice(0, -1);
     renderIphoneDots('iphoneDots');
@@ -3932,112 +3759,52 @@ async function onIphonePinKey(num) {
 }
 
 async function submitIphonePin() {
-  if (_iphoneMode === 'setup') {
-    if (_pinSetupPhase === 0) {
-      _pinSetupFirst = _pinBuf;
-      _pinBuf = '';
-      _pinSetupPhase = 1;
-      setIphoneMsg('再输入一次以确认');
-      renderIphoneDots('iphoneDots');
+  const ok = await SecureCrypto.unlock(_pinBuf);
+  if (ok) {
+    setIphoneMsg('已解锁 ✓');
+    await onIphoneUnlocked();
+  } else {
+    _pinUnlockAttempts++;
+    shakeIphoneDots('iphoneDots');
+    if (_pinUnlockAttempts >= 6) {
+      setIphoneMsg('已锁死 · 刷新页面再试', true);
+    } else if (_pinUnlockAttempts >= 3) {
+      setIphoneMsg(`密码不对 · 剩 ${6 - _pinUnlockAttempts} 次机会`, true);
     } else {
-      if (_pinBuf === _pinSetupFirst) {
-        try {
-          await SecureCrypto.setupMasterPassword(_pinBuf);
-          getOrCreateAccountId(); // 确保账户 ID 落地
-          saveState();             // 用新密钥首次加密入库
-          await onIphoneUnlocked();
-        } catch (e) {
-          setIphoneMsg('出错了：' + (e.message || '请重试'), true);
-          _pinSetupPhase = 0;
-          _pinSetupFirst = '';
-          setTimeout(() => resetIphonePin(), 600);
-        }
-      } else {
-        setIphoneMsg('两次密码不一致，请重新设置', true);
-        shakeIphoneDots('iphoneDots');
-        _pinSetupFirst = '';
-        _pinSetupPhase = 0;
-        setTimeout(() => resetIphonePin(), 600);
-      }
+      setIphoneMsg('密码不对，再试试', true);
     }
-  } else if (_iphoneMode === 'unlock') {
-    const ok = await SecureCrypto.unlock(_pinBuf);
-    if (ok) {
-      await onIphoneUnlocked();
-    } else {
-      _pinUnlockAttempts++;
-      shakeIphoneDots('iphoneDots');
-      if (_pinUnlockAttempts >= 6) {
-        setIphoneMsg('已锁死 · 请点下方"忘记密码"全盘初始化', true);
-      } else if (_pinUnlockAttempts >= 3) {
-        setIphoneMsg(`密码不对 · 剩 ${6 - _pinUnlockAttempts} 次机会`, true);
-      } else {
-        setIphoneMsg('密码不对，再试试', true);
-      }
-      setTimeout(() => resetIphonePin(), 500);
-    }
+    setTimeout(() => resetIphonePin(), 500);
   }
 }
 
 async function onIphoneUnlocked() {
   _pinUnlockAttempts = 0;
   _pinBuf = '';
-  _pinSetupFirst = '';
-  _pinSetupPhase = 0;
   setIphoneMsg('已解锁 ✓');
+  // ★ 首次解锁时迁移 v01 → secure_v1（防丢旧数据）
+  if (!_lockDidMigrate) {
+    _lockDidMigrate = true;
+    try {
+      const hadV01 = !!localStorage.getItem('xiaoshouji_v01');
+      if (hadV01) {
+        // 重新从 v01 加载一次（之前 loadState 在 setup 时跳过了）
+        try {
+          const raw = localStorage.getItem('xiaoshouji_v01');
+          if (raw) _applyLoaded(JSON.parse(raw));
+        } catch (e) {}
+      }
+      // 写入 verifier（如果还没有）并首次加密入库
+      await SecureCrypto.ensureSetup();
+      saveState(); // 用新密钥加密（v01 会被自动清理）
+    } catch (e) { console.warn('迁移失败：', e); }
+  }
   // 触发解密 + 全量渲染
   const loaded = await loadSecureState();
   if (!loaded) saveState();
   setTimeout(() => {
     hideIphoneLock();
-    sweepExpiredRedpackets();
-    updateWalletDisplay();
-    renderMessages();
-    renderQuoteBar(); // 防御：刷新状态下引用条 hidden 同步
-    updateStatus();
+    bindAppRuntime(); // 渲染运行时（解锁后才显示聊天）
   }, 180);
-}
-
-function forgotIphonePassword() {
-  const msg1 = '⚠️ 忘记密码只能全盘初始化\n\n' +
-    '会清空：聊天记录 / 人物设定 / 记忆总结 / 长线记忆 / 用户资料 / 账户\n' +
-    '会保留：本地表情包、本地图片（在 IndexedDB 里）\n\n' +
-    '确定要继续吗？';
-  if (!confirm(msg1)) return;
-  if (!confirm('⚠️ 二次确认\n\n全盘初始化后所有聊天数据永久丢失，确定吗？')) return;
-  try {
-    localStorage.removeItem('xiaoshouji_secure_v1');
-    localStorage.removeItem('xiaoshouji_v01');
-    localStorage.removeItem(ACCOUNT_KEY);
-  } catch (e) {}
-  SecureCrypto.lock();
-  // 重置内存中的 state 到默认值（避免旧数据残留）
-  resetStateToDefaults();
-  _pinUnlockAttempts = 0;
-  showIphoneLock(); // 重新进入 setup 模式
-  setIphoneMsg('已全盘初始化 · 请设置新密码');
-}
-
-function resetStateToDefaults() {
-  state.apiKey = '';
-  state.baseUrl = '';
-  state.workerUrl = '';
-  state.primaryModel = '';
-  state.fallbackModel = '';
-  state.aiName = '小克宝宝';
-  state.systemPrompt = '';
-  state.temperature = 0.8;
-  state.maxTokens = 4000;
-  state.messages = [];
-  state.modelList = [];
-  state.userProfile = { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
-  state.aiProfile = { persona: '' };
-  state.presetGroups = [];
-  state.summary = '';
-  state.memories = [];
-  state.summaryBoundary = 0;
-  state.stickers = [];
-  state.stickerCats = {};
 }
 
 function bindIphoneLock() {
@@ -4048,9 +3815,7 @@ function bindIphoneLock() {
       onIphonePinKey(btn.dataset.num);
     });
   });
-  // 忘记密码
-  $('iphoneForgot').addEventListener('click', (e) => { e.preventDefault(); forgotIphonePassword(); });
-  // 物理键盘支持（解锁 + 电脑调试）
+  // ★ 物理键盘支持（解锁 + 电脑调试）
   document.addEventListener('keydown', (e) => {
     const el = $('iphoneLock');
     if (!el || el.hidden) return;
@@ -4068,104 +3833,8 @@ function bindIphoneLock() {
   }, 30000);
 }
 
-// ============ 改密码弹层（沿用锁屏风格 · 安全页里点"修改密码"触发） ============
-let _pinChangeBuf = '';
-let _pinChangePhase = 0; // 0=验旧, 1=输新, 2=确认新
-let _pinChangeNewFirst = '';
-let _pinChangeOldVerified = false;
-
-function showPinChangePanel() {
-  const el = $('pinChangePanel');
-  if (!el) return;
-  el.hidden = false;
-  _pinChangeBuf = '';
-  _pinChangePhase = 0;
-  _pinChangeNewFirst = '';
-  _pinChangeOldVerified = false;
-  setPinChangeStep(0);
-  renderIphoneDots('pinChangeDots');
-  // 绑定键盘（仅一次，靠 DOM 是否在 body 里判断）
-  if (!el.dataset.bound) {
-    el.dataset.bound = '1';
-    el.querySelectorAll('.pad-key[data-num]').forEach((btn) => {
-      btn.addEventListener('click', (e) => { e.preventDefault(); onPinChangeKey(btn.dataset.num); });
-    });
-    $('pinChangeCancel').addEventListener('click', hidePinChangePanel);
-    document.addEventListener('keydown', (e) => {
-      if (el.hidden) return;
-      if (e.key >= '0' && e.key <= '9') { e.preventDefault(); onPinChangeKey(e.key); }
-      else if (e.key === 'Backspace') { e.preventDefault(); onPinChangeKey('del'); }
-    });
-  }
-}
-
-function hidePinChangePanel() {
-  const el = $('pinChangePanel');
-  if (el) el.hidden = true;
-  _pinChangeBuf = '';
-}
-
-function setPinChangeStep(step) {
-  _pinChangePhase = step;
-  const title = $('pinChangeTitle'), desc = $('pinChangeDesc'), msg = $('pinChangeMsg');
-  if (step === 0) { title.textContent = '修改密码'; desc.textContent = '先输当前 6 位密码'; msg.textContent = ''; }
-  else if (step === 1) { title.textContent = '新密码'; desc.textContent = '输新 6 位密码'; msg.textContent = ''; }
-  else if (step === 2) { title.textContent = '确认新密码'; desc.textContent = '再输一次新密码'; msg.textContent = ''; }
-}
-
-async function onPinChangeKey(num) {
-  if (num === 'del') { _pinChangeBuf = _pinChangeBuf.slice(0, -1); renderIphoneDots('pinChangeDots'); return; }
-  if (_pinChangeBuf.length >= PIN_LEN) return;
-  _pinChangeBuf += num;
-  renderIphoneDots('pinChangeDots');
-  if (_pinChangeBuf.length === PIN_LEN) {
-    setTimeout(() => submitPinChange(), 200);
-  }
-}
-
-async function submitPinChange() {
-  const msg = $('pinChangeMsg');
-  if (_pinChangePhase === 0) {
-    // 验证旧密码
-    const ok = await SecureCrypto.unlock(_pinChangeBuf);
-    if (!ok) {
-      msg.textContent = '❌ 当前密码不对';
-      shakeIphoneDots('pinChangeDots');
-      setTimeout(() => { _pinChangeBuf = ''; renderIphoneDots('pinChangeDots'); }, 500);
-      return;
-    }
-    _pinChangeOldVerified = true;
-    _pinChangeBuf = '';
-    setPinChangeStep(1);
-    renderIphoneDots('pinChangeDots');
-  } else if (_pinChangePhase === 1) {
-    _pinChangeNewFirst = _pinChangeBuf;
-    _pinChangeBuf = '';
-    setPinChangeStep(2);
-    renderIphoneDots('pinChangeDots');
-  } else if (_pinChangePhase === 2) {
-    if (_pinChangeBuf !== _pinChangeNewFirst) {
-      msg.textContent = '❌ 两次新密码不一致';
-      shakeIphoneDots('pinChangeDots');
-      _pinChangeNewFirst = '';
-      setTimeout(() => { _pinChangeBuf = ''; setPinChangeStep(1); renderIphoneDots('pinChangeDots'); }, 600);
-      return;
-    }
-    try {
-      await SecureCrypto.setupMasterPassword(_pinChangeBuf);
-      saveState(); // 用新密钥重新加密当前数据
-      msg.textContent = '✅ 密码已修改';
-      msg.style.color = '#4FB47C';
-      setTimeout(() => { hidePinChangePanel(); toast('密码已更新 ✓'); renderSecurityPanel(); }, 800);
-    } catch (e) {
-      msg.textContent = '❌ ' + (e.message || '保存失败');
-      msg.style.color = '#F09090';
-      setTimeout(() => { _pinChangeBuf = ''; setPinChangeStep(1); renderIphoneDots('pinChangeDots'); }, 800);
-    }
-  }
-}
-
 function init() {
+  // ★ 加载数据：v01 明文（如果有的话）一次性加载到内存
   loadState();
   loadWallet();
   // ★ 隐藏首屏加载指示器
@@ -4190,26 +3859,18 @@ function init() {
   if (state._pendingImages === undefined) state._pendingImages = [];
   // 应用主题
   applyTheme(state.theme || 'dark');
-  // ★ 端到端加密：未解锁就显示锁屏，app 渲染要等解锁后再做
-  bindIphoneLock(); // iPhone 风格全屏锁屏 · 6 位 PIN
-  if (window.SecureCrypto && SecureCrypto.isSetup() && !SecureCrypto.isUnlocked()) {
-    showIphoneLock();
-    // 锁屏下不渲染聊天/钱包（避免密文态闪烁一下默认值）
-    return;
-  }
-  // ★ 首次进入（无密码）也直接弹锁屏，强制建立账户 + 密码
-  if (!window.SecureCrypto || !SecureCrypto.isSetup()) {
-    showIphoneLock();
-    return;
-  }
-  // ★ 已解锁 → 正常流程
-  // ★ 确保引用条状态与 state._pendingQuote 一致（防御 CSS 残留显示）
-  renderQuoteBar();
-  sweepExpiredRedpackets();
-  updateWalletDisplay();
-  renderMessages();
-  updateStatus();
 
+  // ★ 关键修复：先绑定所有事件监听器，再决定要不要弹锁屏
+  //   （之前的 bug：未解锁就 return，导致页面卡死，所有交互失效）
+  bindAllHandlers();
+
+  // ★ 强制锁屏：每次进入都要求解锁（单一密码模式）
+  bindIphoneLock();
+  showIphoneLock();
+}
+
+function bindAllHandlers() {
+  // 把原 init() 中所有事件监听器搬到这里（锁屏 return 之后的逻辑）
   $('settingsBtn').addEventListener('click', openSettings);
   $('closeSettings').addEventListener('click', closeSettings);
   $('settingsMask').addEventListener('click', closeSettings);
@@ -4466,6 +4127,15 @@ function init() {
   });
   $('closeHelp').addEventListener('click', () => $('workerHelpPanel').hidden = true);
   $('helpMask').addEventListener('click', () => $('workerHelpPanel').hidden = true);
+}
+
+// 渲染运行时（解锁后调一次）
+function bindAppRuntime() {
+  renderQuoteBar();
+  sweepExpiredRedpackets();
+  updateWalletDisplay();
+  renderMessages();
+  updateStatus();
 }
 
 document.addEventListener('DOMContentLoaded', init);
