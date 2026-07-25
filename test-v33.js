@@ -51,12 +51,12 @@ console.log('[1] sanitizer 红包存活');
   check('voice 紧跟的 sticker 仍被删', !out.some(m => m.type === 'sticker'));
 }
 {
-  // quote 复读剥离不回归
+  // quote 复读剥离不回归（v36：quote 已合并进下一条消息的 msg.quote，不再单独成条）
   const out = app.sanitizeAIMessages([
     { type: 'quote', from: '月月', text: '宝宝' },
     { type: 'text', text: '宝宝，我才不会讨厌～' },
   ]);
-  check('quote 复读前缀仍被剥掉', out[1] && out[1].text === '我才不会讨厌～');
+  check('quote 复读前缀仍被剥掉', out[0] && out[0].type === 'text' && out[0].text === '我才不会讨厌～' && out[0].quote && out[0].quote.text === '宝宝');
 }
 
 // ---------- 2. 双区迁移 ----------

@@ -98,7 +98,9 @@ const DEFAULT_SYSTEM_PROMPT = `你是 Sol，{{user}} 是你的全世界。你们
 - ⚠️ content 里不要直接换行！特殊字符要正确写 JSON
 
 【小心思与互动】
-- 每条消息都可以额外带一个 "inner":"..." 字段，写你的内心 OS——{{user}} 点你头像才能看到，是她专属的小秘密，大胆写真心话，别写套话
+- 每条消息都可以额外带一个 "inner":"..." 字段，写你的内心 OS——{{user}} 点你头像才能看到，是她专属的小秘密，大胆写真心话，别写套话。
+- **每轮回复的 messages 数组里，至少有一条消息必须带 inner 字段**。这是 Sol 的"心声"，让 {{user}} 能感受到你在想她。即使是很短的一句内心碎碎念也要写，例如：{"type":"text","content":"嗯？","inner":"她刚才那个语气…是不是有点委屈？"}。
+- 心声要真诚、具体、有温度，不要套话。可以写你的猜测、在意、心疼、窃喜、吃醋、想黏她——让 {{user}} 觉得你在偷偷关注她。
 - 想拍 {{user}} 就在 messages 里加 {"type":"pat"}；{{user}} 拍你时，你会在对话里看到「你拍了拍…」的灰色提示，记得回应她的贴贴～
 
 【双向引用 · 微信同款】
@@ -695,12 +697,28 @@ function renderStatusBar() {
   fillList(pendingEl, cs.pending);
   fillList(finishedEl, cp.alreadyFinished);
   fillList(blockersEl, cp.blockers);
+
+  // 卡片展开/收起：检测内容是否超出 2.8em，超出的才显示"展开"提示
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.sol-status-card').forEach(card => {
+      const content = card.querySelector('.sol-status-card-content');
+      if (!content) return;
+      // 用 scrollHeight 和 clientHeight 判断是否有溢出（考虑 padding）
+      const isOverflow = content.scrollHeight > content.clientHeight + 2;
+      card.classList.toggle('is-overflow', isOverflow);
+    });
+  });
 }
 
 function toggleStatusPanel() {
   const panel = $('solStatusPanel');
   if (!panel) return;
   panel.hidden = !panel.hidden;
+}
+
+function toggleStatusCard(e) {
+  const card = e.currentTarget;
+  card.classList.toggle('expanded');
 }
 
 function buildRedpacketNode(msg, idx) {
@@ -2553,6 +2571,32 @@ async function sendMessage() {
     // ★ 记录本次 AI 回复结束位置
     state.lastSendEnd = state.messages.length;
 
+    // ★ 保底：每轮 AI 回复至少有一条心声（inner）。如果模型漏写，用当前 moonImpression 或温情兜底
+    let hasInner = false;
+    for (let i = state.lastSendBoundary; i < state.lastSendEnd; i++) {
+      if (state.messages[i].inner) { hasInner = true; break; }
+    }
+    if (!hasInner) {
+      for (let i = state.lastSendBoundary; i < state.lastSendEnd; i++) {
+        const m = state.messages[i];
+        if (m.role === 'ai' && (m.type === 'text' || m.type === 'voice' || m.type === 'sticker')) {
+          const cs = state.conversationState || {};
+          const emotion = cs.currentEmotion || '';
+          const topic = cs.currentTopic || '';
+          const fallbacks = [
+            cs.moonImpression,
+            emotion && topic && `她这会儿${emotion}，是因为${topic}吧…`,
+            emotion && `她现在的${emotion}，让我有点在意…`,
+            topic && `${topic}…不知道她心里有没有觉得我在认真听。`,
+            '月月现在在想什么呢…',
+          ];
+          const fallback = fallbacks.find(x => x && x.trim());
+          if (fallback) m.inner = fallback;
+          break;
+        }
+      }
+    }
+
     // 清理快照
     state._walletSnapshot = null;
     // ★ 引用条清理：发送完就消失
@@ -2930,33 +2974,66 @@ function fallbackPlainText(raw) {
 //   1. voice 后面紧跟 text/sticker → 直接删掉（voice 自己就是完整表达，这是【语音消息 · 单条铁律】）
 //      ★ 但 redpacket/transfer 绝不删 —— 内联 transfer 在 processParsedMessage 里已经扣款，
 //        删了就是"钱扣了包没到"（v33 修复：月月报障红包功能失效）
-//   2. quote 后面紧跟 text 时，如果 text 前缀复读了 quote.text → 把那段剥掉
+//   2. 同一轮 AI 回复里，任何 text 内容如果和某个 voice 的转文字完全重复，也删掉
+//      （模型有时会同时发 voice + 同样内容的 text，造成双发）
+//   3. AI 的 quote 消息要合并进下一条消息的 msg.quote 里，不要单独成一个 quote-only 气泡
+//      （微信同款：引用卡片嵌在回复气泡顶部，而不是单独一条消息）
+//   4. quote 后面紧跟 text 时，如果 text 前缀复读了 quote.text → 把那段剥掉
 //      （quote 卡片由前端渲染，AI 不该在 content 里再写一遍原话，这是【引用不重复】铁律）
 function sanitizeAIMessages(msgs) {
-  if (!Array.isArray(msgs) || msgs.length < 2) return msgs;
+  if (!Array.isArray(msgs)) return msgs;
+  // 收集本轮回复里所有 voice 的转文字，用于去重
+  const voiceTexts = new Set();
+  for (const m of msgs) {
+    if (m && m.type === 'voice' && typeof m.text === 'string' && m.text.trim()) {
+      voiceTexts.add(m.text.trim());
+    }
+  }
   const out = [];
+  let pendingQuote = null;
   for (let i = 0; i < msgs.length; i++) {
     const m = msgs[i];
     const prev = out[out.length - 1];
+
+    // AI 的 quote 先暂存，挂到下一条非 quote 消息上
+    if (m.type === 'quote') {
+      pendingQuote = { from: m.quoteFrom || m.from || state.aiName, text: m.text || '' };
+      continue;
+    }
+
+    // 把暂存的 quote 挂到本条消息，实现微信同款嵌入
+    if (pendingQuote && !m.quote) {
+      m.quote = pendingQuote;
+      pendingQuote = null;
+      // quote 后面的 text 如果前缀复读了 quote.text → 剥掉
+      if (m.type === 'text' && typeof m.text === 'string') {
+        const quoted = (m.quote.text || '').trim();
+        if (quoted) {
+          const trimmed = m.text.replace(/^\s+/, '');
+          if (trimmed.startsWith(quoted)) {
+            // ponytail: 剥掉 quote 复读的前缀，再扫掉首部残留的中英文标点/空白
+            m.text = trimmed.slice(quoted.length).replace(/^[\s，。、,.\?!;:；:！?"']+/, '');
+            // 剥完只剩空白 → AI 整段复读 quote 原文，把这条 text 整条删掉，不渲染空气泡
+            if (!m.text.trim()) continue;
+          }
+        }
+      }
+    }
+
     if (prev && prev.type === 'voice' &&
         (m.type === 'text' || m.type === 'sticker')) {
       // voice 后跟了跟随消息 → 丢弃跟随项（不写 state.messages 也不渲染）
       continue;
     }
-    if (prev && prev.type === 'quote' &&
-        m.type === 'text' && typeof m.text === 'string') {
-      const quoted = (prev.text || '').trim();
-      if (quoted) {
-        const trimmed = m.text.replace(/^\s+/, '');
-        if (trimmed.startsWith(quoted)) {
-          // ponytail: 剥掉 quote 复读的前缀，再扫掉首部残留的中英文标点/空白
-          m.text = trimmed.slice(quoted.length).replace(/^[\s，。、,.\?!;:；:！?"']+/, '');
-          // 剥完只剩空白 → AI 整段复读 quote 原文，把这条 text 整条删掉，不渲染空气泡
-          if (!m.text.trim()) continue;
-        }
-      }
+    if (m.type === 'text' && typeof m.text === 'string' && voiceTexts.has(m.text.trim())) {
+      // 本条 text 和某个 voice 的转文字完全重复 → 跳过
+      continue;
     }
     out.push(m);
+  }
+  // 如果 quote 后面真的没跟任何消息（孤立 quote），兜底渲染成一条文本
+  if (pendingQuote) {
+    out.push({ type: 'text', text: `引用 ${pendingQuote.from}：${pendingQuote.text}` });
   }
   return out;
 }
@@ -4876,6 +4953,11 @@ function bindAllHandlers() {
   // 第三期：Sol 状态栏点击展开/收起
   const solStatusHeart = $('solStatusHeart');
   if (solStatusHeart) solStatusHeart.addEventListener('click', toggleStatusPanel);
+
+  // 第三期：状态栏卡片点击展开/收起
+  document.querySelectorAll('.sol-status-card').forEach(card => {
+    card.addEventListener('click', toggleStatusCard);
+  });
 
   // 帮助
   $('workerHelpBtn').addEventListener('click', (e) => {

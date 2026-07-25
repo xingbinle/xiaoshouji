@@ -300,25 +300,40 @@
       </svg>
     </div>
     <div class="sol-status-cards">
-      <div class="sol-status-card sol-status-card-wide">
+      <div class="sol-status-card sol-status-card-wide" data-card="moon">
         <h4>💭 心理独白</h4>
-        <p id="solStatusMoonImpression">Sol 正在认真听月月说话…</p>
+        <div class="sol-status-card-content">
+          <p id="solStatusMoonImpression">Sol 正在认真听月月说话…</p>
+        </div>
+        <span class="sol-status-card-hint">展开</span>
       </div>
-      <div class="sol-status-card">
+      <div class="sol-status-card" data-card="goal">
         <h4>🎯 当前目标</h4>
-        <p id="solStatusGoal">—</p>
+        <div class="sol-status-card-content">
+          <p id="solStatusGoal">—</p>
+        </div>
+        <span class="sol-status-card-hint">展开</span>
       </div>
-      <div class="sol-status-card">
+      <div class="sol-status-card" data-card="pending">
         <h4>📌 待处理事项</h4>
-        <ul id="solStatusPending"></ul>
+        <div class="sol-status-card-content">
+          <ul id="solStatusPending"></ul>
+        </div>
+        <span class="sol-status-card-hint">展开</span>
       </div>
-      <div class="sol-status-card">
+      <div class="sol-status-card" data-card="finished">
         <h4>✅ 已完成</h4>
-        <ul id="solStatusFinished"></ul>
+        <div class="sol-status-card-content">
+          <ul id="solStatusFinished"></ul>
+        </div>
+        <span class="sol-status-card-hint">展开</span>
       </div>
-      <div class="sol-status-card">
+      <div class="sol-status-card" data-card="blockers">
         <h4>🚧 阻碍</h4>
-        <ul id="solStatusBlockers"></ul>
+        <div class="sol-status-card-content">
+          <ul id="solStatusBlockers"></ul>
+        </div>
+        <span class="sol-status-card-hint">展开</span>
       </div>
     </div>
   </div>
