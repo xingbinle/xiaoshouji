@@ -2526,6 +2526,8 @@ function sanitizeAIMessages(msgs) {
         if (trimmed.startsWith(quoted)) {
           // ponytail: 剥掉 quote 复读的前缀，再扫掉首部残留的中英文标点/空白
           m.text = trimmed.slice(quoted.length).replace(/^[\s，。、,.\?!;:；:！?"']+/, '');
+          // 剥完只剩空白 → AI 整段复读 quote 原文，把这条 text 整条删掉，不渲染空气泡
+          if (!m.text.trim()) continue;
         }
       }
     }
