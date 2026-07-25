@@ -2862,7 +2862,7 @@ function navMp(page) {
 
 // ============ 像素小怪兽互动彩蛋 ============
 // 5 种动画随机播放；次数每次点击 +1；连击 5 次触发"组合连招"
-const MONSTER_ANIMS = ['spin', 'jump', 'shake', 'bounce', 'wiggle'];
+const MONSTER_ANIMS = ['spin', 'jump', 'shake', 'bounce', 'wiggle']; // 'bounce' 对应 CSS .monster-pop（避免关键字误导）
 const MONSTER_COMBO_GREETINGS = [
   '🍊 它今天心情好！',
   '✨ 它在跟月月撒娇',

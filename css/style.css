@@ -1388,7 +1388,7 @@ a {
   border-radius: var(--r-sm);
   max-width: 100%;
   font-family: var(--font-ui);
-  border-left: 2px solid var(--sky);
+  border-left: 2px solid rgba(125, 176, 224, 0.55);
 }
 .msg-quote-card-bar {
   display: none; /* 边线已用 border-left 表达，这里保留位以兼容旧 class */
@@ -1604,7 +1604,7 @@ a {
   animation: monster-shake 0.5s var(--ease-out) both;
 }
 .big-monster.bounce {
-  animation: monster-bounce 0.9s var(--ease-out) both;
+  animation: monster-pop 0.9s var(--ease-out) both;
 }
 .big-monster.wiggle {
   animation: monster-wiggle 0.6s ease-in-out both;
@@ -1632,7 +1632,7 @@ a {
   60% { transform: translateX(-6px) rotate(-3deg); }
   80% { transform: translateX(6px) rotate(3deg); }
 }
-@keyframes monster-bounce {
+@keyframes monster-pop {
   0% { transform: translateY(0) scale(1); }
   40% { transform: translateY(-20px) scale(1.18, 0.85); }
   70% { transform: translateY(0) scale(0.9, 1.12); }
