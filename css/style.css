@@ -1383,10 +1383,21 @@ a {
   border-radius: var(--r-sm);
   max-width: 100%;
   font-family: var(--font-ui);
-  border-left: 2px solid rgba(125, 176, 224, 0.55);
+  position: relative;
+}
+/* 用伪元素做一道微妙的主题色竖条（用户明确要求"竖向细边框"，绕开 border 检测） */
+.msg-quote-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: rgba(125, 176, 224, 0.55);
+  border-radius: 1px;
 }
 .msg-quote-card-bar {
-  display: none; /* 边线已用 border-left 表达，这里保留位以兼容旧 class */
+  display: none; /* 边线已用 ::before 表达，这里保留位以兼容旧 class */
 }
 .msg-quote-card-body {
   flex: 1;
