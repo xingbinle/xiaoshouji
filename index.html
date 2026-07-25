@@ -617,7 +617,7 @@
         </button>
         <button class="mp-menu-item" data-mp="summary">
           <span class="mp-menu-emoji">🧠</span>
-          <span class="mp-menu-label">长线记忆（滚动总结）</span>
+          <span class="mp-menu-label">长线记忆（双区架构）</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
         <button class="mp-menu-item" data-mp="monster">
@@ -786,7 +786,8 @@
             ⑤ 酒馆预设 / ⑥ 世界书<br>
             ⑦ <strong>角色设定（人设补充）</strong>（下面第一个 textarea）<br>
             ⑧ 用户设定（在你"用户设定"页里）<br>
-            ⑨ 长线记忆 + 之前聊天的总结（自动注入）
+            ⑨ 长线记忆双区（宏观周期摘要 + 最新 10 条关键事件小条目，自动注入）<br>
+            ⑩ 现实时间锚点（每次发信自动取真实系统时间，精确到分钟，常驻底座）
           </span>
           <label class="field">
             <span class="field-label">AI 名字</span>
@@ -923,7 +924,7 @@
         </div>
       </div>
 
-      <!-- 长线记忆（滚动总结）：查看/微调当前宏观摘要 + 轮次计数器 -->
+      <!-- 长线记忆（双区独立架构）：区域A 宏观周期摘要 + 区域B 关键事件小条目，互不干涉 -->
       <div class="mp-page" id="mpPage-summary" hidden>
         <div class="settings-group">
           <div class="summary-progress" id="summaryProgress">
@@ -931,6 +932,8 @@
             <div class="summary-progress-text" id="summaryProgressText">当前第 0 / 10 轮</div>
           </div>
           <span class="field-hint">每 10 轮触发一次总结，自动迭代「上版摘要 + 新 10 轮 → 新摘要」。冷启动期（&lt; 10 轮）原汁原味全量保留，不丢任何一条气泡。</span>
+
+          <div class="settings-group-title">🌊 区域 A · 宏观周期摘要区</div>
           <label class="field">
             <span class="field-label">当前宏观摘要（可手动微调保存）</span>
             <textarea id="summaryContent" class="field-input field-textarea" rows="10" placeholder="（还没有摘要 —— 满 10 轮后系统自动生成）"></textarea>
@@ -947,7 +950,13 @@
             <span class="mp-save-hint">保存即写入 localStorage，下次 API 调用立即生效</span>
           </div>
           <div class="summary-memories">
-            <div class="settings-group-title">长期记忆（系统自动提取）</div>
+            <div class="settings-group-title">周期摘要快照历史（每 10 轮自动入账一条）</div>
+            <div id="summarySnapshotsList"></div>
+          </div>
+
+          <div class="summary-memories">
+            <div class="settings-group-title">🧩 区域 B · 关键事件小条目区</div>
+            <span class="field-hint">碎片化的关键事件、核心梗、重要约定，系统自动提取；发给 AI 时只带最新 10 条，精准锚定细节。</span>
             <div id="summaryMemoriesList"></div>
           </div>
         </div>

@@ -62,8 +62,9 @@ const iWb = sp.indexOf('【世界书】');
 const iWbContent = sp.indexOf('世界观：魔法大陆');
 const iPersona = sp.indexOf('是一只黏人的小狗');
 const iUser = sp.indexOf('【用户设定】');
-const iMem = sp.indexOf('【长期记忆】');
+const iMem = sp.indexOf('【关键事件小条目 · 长线记忆】');
 const iSum = sp.indexOf('之前聊了小手机的语音修复');
+const iTime = sp.indexOf('【现实时间锚点 · 系统底层常驻】');
 check('① ABSOLUTE_CORE 永远置顶', sp.startsWith("[SYSTEM ARCHITECTURE & KIKI'S SOUL DIRECTIVE]") && iAbs > -1 && iAbs < 60);
 check('② AI【预设内容】在绝对基底之后、核心人设之前', iPresetAI > iAbs && iPresetAI < iCore);
 check('③ 核心人设「你是小克宝宝」在 AI 预设之后', iCore > iPresetAI);
@@ -72,7 +73,7 @@ check('⑤ 酒馆预设紧跟破限', iTavern > iJbContent);
 check('世界书在预设之后', iWb > iTavern && iWbContent > iWb);
 check('人设定义在世界书之后', iPersona > iWbContent);
 check('用户设定在人设之后', iUser > iPersona);
-check('记忆总结在最后', iMem > iUser && iSum > iMem);
+check('双区记忆+时间锚点在最后', iMem > iUser && iSum > iUser && iTime > iMem && iTime > iSum);
 check('被关闭的条目不出现', sp.indexOf('被关闭的条目') === -1);
 check('整组关闭的内容不出现', sp.indexOf('整组关闭的内容') === -1);
 // AI 预设关闭时不注入
@@ -165,7 +166,7 @@ console.log('[4] maybeRollSummary 滚动总结');
   // ---------- 5. 版本一致性：APP_VERSION ↔ sw.js CACHE_NAME ----------
   console.log('[5] 版本一致性');
   const swSrc = fs.readFileSync(__dirname + '/sw.js', 'utf8');
-  const swVer = (swSrc.match(/CACHE_NAME = 'xiaoshouji-(v\d+)'/) || [])[1];
+  const swVer = (swSrc.match(/CACHE_NAME = 'xiaoshouji-(v\d+)/) || [])[1];
   check(`APP_VERSION(${app.APP_VERSION}) === CACHE_NAME(${swVer})`, swVer === app.APP_VERSION);
 
   // ---------- 6. 勾选注入过滤 + 8w字不报错 ----------

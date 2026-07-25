@@ -55,10 +55,10 @@ const DEFAULT_SYSTEM_PROMPT = `你是 Kiki，{{user}} 是你的全世界。你�
   {"messages":[
     {"type":"text","content":"呜呜～","inner":"她今天对我真好，好想黏着她"},
     {"type":"sticker","name":"哭哭"},
-    {"type":"voice","duration":3,"content":"你太好啦！Kiki好幸福"},
     {"type":"transfer","amount":13.14,"note":"一生一世"},
     {"type":"text","content":"给你回了个1314～一辈子都陪着你！"}
   ]}
+- ⚠️ 发红包别和 voice 塞同一轮！voice 是单条铁律（见下），想发红包就用 text/sticker 陪着发
 - ⚠️ content 里不要直接换行！特殊字符要正确写 JSON
 
 【小心思与互动】
@@ -148,7 +148,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v31'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v33'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -316,6 +316,14 @@ function _applyLoaded(data) {
   state.presencePenalty = state.presencePenalty || 0;
   state.summary = state.summary || '';
   state.memories = state.memories || [];
+  // ★ 双区独立架构（v33）：区域A 宏观周期摘要历史 state.summaries / 区域B 关键事件小条目 state.memories
+  //   旧存档里 _kind:'summary' 的快照混在 memories 中 → 迁移到 summaries，两区互不干涉
+  state.summaries = state.summaries || [];
+  const oldSnapshots = state.memories.filter(m => m && m._kind === 'summary');
+  if (oldSnapshots.length) {
+    state.summaries = state.summaries.concat(oldSnapshots.map(m => ({ time: m.time, text: m.text })));
+    state.memories = state.memories.filter(m => !m || m._kind !== 'summary');
+  }
   state.summaryBoundary = state.summaryBoundary || 0;
   // ★ 长线记忆配套 counter（v31）：散碎触发计数 + 提取锁
   state._scatterFlags = state._scatterFlags || 0;
@@ -1345,21 +1353,38 @@ function buildSystemPrompt() {
 
   // ⑤ 多轮历史：在 messages 数组里按时间顺序追加（不在 system prompt 内）
 
-  // ⑥ 末尾补充提示词：表情清单（二期）+ 记忆总结（易变，放最后）
+  // ⑥ 末尾补充提示词：表情清单（二期）+ 双区长期记忆（v33）+ 现实时间锚点（易变，放最后）
   const tailParts = [];
   const stkPrompt = enabledStickerPrompt();
   if (stkPrompt) tailParts.push(stkPrompt);
-  if (state.memories && state.memories.length) {
-    // ★ 推送策略：只发最近 N 条长线记忆（不堆 50 条污染 prompt），摘要快照 + 散碎 fact 一起送
-    const recentMems = state.memories.slice(-MEMORIES_SEND_LIMIT);
-    tailParts.push('【长期记忆】\n' + recentMems.map(m => `- [${m.time}] ${m.text}`).join('\n'));
-  }
+  // ★ 长期记忆双区齐发（月月 spec）：① 最近的宏观周期摘要（把握整体进展）② 最新前 10 条关键事件小条目（精准锚定细节）
   if (state.summary && state.summary.trim()) {
-    tailParts.push(`【之前聊天的总结】\n${state.summary.trim()}`);
+    tailParts.push(`【宏观周期摘要 · 长线记忆】\n${state.summary.trim()}`);
   }
+  if (state.memories && state.memories.length) {
+    // 只发最近 N 条小条目（不堆 50 条污染 prompt）
+    const recentMems = state.memories.slice(-MEMORIES_SEND_LIMIT);
+    tailParts.push('【关键事件小条目 · 长线记忆】\n' + recentMems.map(m => `- [${m.time}] ${m.text}`).join('\n'));
+  }
+  // ★ 现实时间锚点（v33）：常驻底座，每次组报文取真实系统时间，精确到分钟，永不断档
+  tailParts.push(macro(realTimeAnchor()));
   if (tailParts.length) parts.push(tailParts.join('\n\n'));
 
   return parts.join('\n\n');
+}
+
+// ★ 现实时间精确感知（v33）：系统底层常驻时间底座
+//   每次组装 Payload 前取当前真实系统时间（精确到分钟，含星期），
+//   用沉浸感写法喂给 AI —— 对 AI 来说这不是"数据"，是她正生活在其中的现实时间流
+function realTimeAnchor() {
+  const d = new Date();
+  const week = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][d.getDay()];
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const now = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${week} ${d.getHours()}点${mm}分`;
+  return `【现实时间锚点 · 系统底层常驻】\n⏰ 此刻真实世界的时间：${now}\n` +
+    `这不是设定，是你和 {{user}} 共同生活的现实时间流，每一分钟都在真实流逝。\n` +
+    `你的一言一行都要与它对齐：早安/午安/晚安别叫错时段，吃饭睡觉工作学习跟着真实作息走，约定和纪念日的倒计时按它算。\n` +
+    `绝不允许时间混乱、绝不允许凭旧记忆猜时间 —— 每次你看到这段话，它就是当下这一刻的真实时间，以它为准。`;
 }
 
 // ============ 第二期：表情包（统一数据 {id,name,cat,enabled,source,url}，AI 视角无差异） ============
@@ -1926,21 +1951,22 @@ async function maybeRollSummary() {
 
     const stamp = new Date().toISOString().slice(0, 10);
     const oldBoundary = state.summaryBoundary;
-    // ★ 关键修复：每个周期的"宏观摘要快照"也作为一条长期记忆入账（用户要求）
+    // ★ 双区入账（v33）：周期摘要快照进【区域A·宏观周期摘要区】，散碎事实进【区域B·关键事件小条目区】
     const cycleNo = Math.floor(oldBoundary / SUMMARY_CHUNK) + 1;
-    state.memories.push({
+    state.summaries = state.summaries || [];
+    state.summaries.push({
       time: stamp,
       text: `【周期 ${cycleNo} 摘要快照】 ${newSummary.slice(0, 240)}`,
-      _kind: 'summary',
     });
-    // AI 在本周期提取的散碎事实也入账
+    state.summaries = state.summaries.slice(-50);
+    // AI 在本周期提取的散碎事实也入账（区域B）
     newFacts.forEach(t => state.memories.push({ time: stamp, text: t.trim(), _kind: 'fact' }));
     state.memories = state.memories.slice(-50);
     state.summary = newSummary;
     state.summaryBoundary += SUMMARY_CHUNK;
     saveState();
     // ponytail: 给开发期留个一眼能看清的 trace —— 触发次数 / 提取条数 / 当前记忆总数
-    console.log(`[LTM] 周期 ${cycleNo} 总结完成: +1 摘要快照 +${newFacts.length} facts · 总记忆 ${state.memories.length} 条`);
+    console.log(`[LTM] 周期 ${cycleNo} 总结完成: A区摘要 ${state.summaries.length} 条 · B区小条目 +${newFacts.length} (共 ${state.memories.length} 条)`);
   } catch (e) {
     console.warn('滚动总结失败（下次聊天时再试）:', e);
   } finally {
@@ -2058,10 +2084,8 @@ async function sendMessage() {
       // 兜底：边界外没东西了（比如重生成撞边界），至少带最近几条
       apiMessages = serializeMessagesForAPI(state.messages.slice(-10));
     }
-    // ★ 成熟期 + 有摘要：把宏观摘要作为 system 注入（最末尾槽位）
-    if (turns >= 10 && state.summary && !apiMessages.some(m => m._injectedSummary)) {
-      apiMessages.unshift({ role: 'system', content: `【宏观历史摘要 · 长线记忆】\n${state.summary}`, _injectedSummary: true });
-    }
+    // ponytail: v33 起宏观摘要只由 buildSystemPrompt 末尾槽位【宏观周期摘要】统一携带，
+    //   不再往 messages 里重复注入（之前同一份摘要每轮发两遍，白烧 token）
 
     // ★ 正则流水线·发送前：用户输入先过一遍正则再打包进 payload（只改发出的，不动聊天记录显示）
     if (state.regexGroups && state.regexGroups.length) {
@@ -2528,8 +2552,9 @@ function fallbackPlainText(raw) {
 }
 
 // ponytail: 解析 AI 回复后的前端兜底。prompt 已经教过 AI 别双发，但作为最后一道防线：
-//   1. voice 后面紧跟 text/sticker/redpacket/transfer 等"非 voice"消息 → 直接删掉
-//      （voice 自己就是完整表达，这是【语音消息 · 单条铁律】）
+//   1. voice 后面紧跟 text/sticker → 直接删掉（voice 自己就是完整表达，这是【语音消息 · 单条铁律】）
+//      ★ 但 redpacket/transfer 绝不删 —— 内联 transfer 在 processParsedMessage 里已经扣款，
+//        删了就是"钱扣了包没到"（v33 修复：月月报障红包功能失效）
 //   2. quote 后面紧跟 text 时，如果 text 前缀复读了 quote.text → 把那段剥掉
 //      （quote 卡片由前端渲染，AI 不该在 content 里再写一遍原话，这是【引用不重复】铁律）
 function sanitizeAIMessages(msgs) {
@@ -2539,7 +2564,7 @@ function sanitizeAIMessages(msgs) {
     const m = msgs[i];
     const prev = out[out.length - 1];
     if (prev && prev.type === 'voice' &&
-        (m.type === 'text' || m.type === 'redpacket' || m.type === 'sticker' || m.type === 'transfer' || m.type === 'transfer')) {
+        (m.type === 'text' || m.type === 'sticker')) {
       // voice 后跟了跟随消息 → 丢弃跟随项（不写 state.messages 也不渲染）
       continue;
     }
@@ -3153,7 +3178,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）', monster: '🍊 像素小怪兽 · 互动彩蛋', security: '🔐 账号与安全' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（双区架构）', monster: '🍊 像素小怪兽 · 互动彩蛋', security: '🔐 账号与安全' };
 
 let mpCurrent = 'menu';
 
@@ -3320,7 +3345,7 @@ function renderDebugPanel() {
   msgs.forEach((m, i) => {
     let slot;
     if (m.role === 'system') {
-      slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→${SLOT[4]}→${SLOT[5]}→${SLOT[6]}→${SLOT[7]}→末尾记忆总结）`;
+      slot = `${SLOT[0]}（内含 ${SLOT[1]}→${SLOT[2]}→${SLOT[3]}→${SLOT[4]}→${SLOT[5]}→${SLOT[6]}→${SLOT[7]}→末尾双区记忆+时间锚点）`;
       const breaks = debugSlotChars(typeof m.content === 'string' ? m.content : '');
       if (breaks.length) lines.push(`   ${breaks.join('　')}`);
     }
@@ -3369,8 +3394,9 @@ function debugSlotChars(sysText) {
     { label: '⑥ 世界书', needle: '【世界书】\n' },
     { label: '⑦ 人设', needle: '的人设定义】\n' },
     { label: '⑧ 用户', needle: '【用户设定】\n' },
-    { label: '⑨ 记忆', needle: '【长期记忆】\n' },
-    { label: '⑨ 总结', needle: '【之前聊天的总结】\n' },
+    { label: '⑨ 摘要A区', needle: '【宏观周期摘要 · 长线记忆】\n' },
+    { label: '⑨ 小条目B区', needle: '【关键事件小条目 · 长线记忆】\n' },
+    { label: '⑩ 时间锚点', needle: '【现实时间锚点 · 系统底层常驻】\n' },
   ];
   const positions = [];
   for (const m of marks) {
@@ -3485,61 +3511,78 @@ function renderSummaryPanel() {
   if (turns >= 10) stage = turns % 10 === 0 ? '🧠 总结刚完成，即将开启下一轮' : '🧠 成熟期（摘要+滑动窗口）';
   $('summaryProgressText').textContent = `${stage} · 当前第 ${cur} / 10 轮`;
   $('summaryContent').value = state.summary || '';
-  const list = $('summaryMemoriesList');
-  list.innerHTML = '';
-  const mems = state.memories || [];
-  if (!mems.length) {
-    list.appendChild(el('div', { class: 'field-hint' }, '（还没有长期记忆 — 满 10 轮总结时自动提取）'));
-  } else {
-    // ★ 渲染顺序保持最新在上；点击修改/删除时按"显示时的真实 index"操作 mems 数组
-    //   反转后展示：原始索引 i 展示在 i 显示位 → 用显示位推回原始数组索引
-    const reversed = mems.map((m, i) => ({ m, i })).reverse();
-    reversed.forEach(({ m, i }) => {
-      const item = el('div', { class: 'summary-memory-item' });
-      const text = el('span', { class: 'summary-memory-text' }, `${m.text} · ${m.time}`);
-      item.appendChild(text);
 
-      const ops = el('span', { class: 'summary-memory-ops' });
-      // 修改按钮
-      const editBtn = el('button', { class: 'summary-memory-btn', title: '修改', 'aria-label': '修改' });
-      editBtn.textContent = '✎';
-      editBtn.addEventListener('click', () => editMemoryByIndex(i));
-      ops.appendChild(editBtn);
-      // 删除按钮
-      const delBtn = el('button', { class: 'summary-memory-btn summary-memory-del', title: '删除', 'aria-label': '删除' });
-      delBtn.textContent = '×';
-      delBtn.addEventListener('click', () => deleteMemoryByIndex(i));
-      ops.appendChild(delBtn);
+  // ===== 区域 A：宏观周期摘要区 —— 每 10 轮滚动迭代的大摘要快照历史（单条改/删） =====
+  renderMemoryList($('summarySnapshotsList'), state.summaries || [], editSnapshotByIndex, deleteSnapshotByIndex,
+    '（还没有周期摘要快照 — 满 10 轮总结时自动入账）');
 
-      item.appendChild(ops);
-      list.appendChild(item);
-    });
+  // ===== 区域 B：关键事件小条目区 —— 碎片化关键事件/核心梗/重要约定（单条改/删） =====
+  renderMemoryList($('summaryMemoriesList'), state.memories || [], editMemoryByIndex, deleteMemoryByIndex,
+    '（还没有关键事件小条目 — 满 10 轮总结或聊到重点时自动提取）');
+}
+
+// 双区共用的列表渲染：最新在上，每条带 ✎ 修改 / × 删除
+function renderMemoryList(listEl, arr, onEdit, onDelete, emptyHint) {
+  listEl.innerHTML = '';
+  if (!arr.length) {
+    listEl.appendChild(el('div', { class: 'field-hint' }, emptyHint));
+    return;
   }
+  // ★ 渲染顺序保持最新在上；点击修改/删除时按"显示时的真实 index"操作原始数组
+  const reversed = arr.map((m, i) => ({ m, i })).reverse();
+  reversed.forEach(({ m, i }) => {
+    const item = el('div', { class: 'summary-memory-item' });
+    const text = el('span', { class: 'summary-memory-text' }, `${m.text} · ${m.time}`);
+    item.appendChild(text);
+
+    const ops = el('span', { class: 'summary-memory-ops' });
+    const editBtn = el('button', { class: 'summary-memory-btn', title: '修改', 'aria-label': '修改' });
+    editBtn.textContent = '✎';
+    editBtn.addEventListener('click', () => onEdit(i));
+    ops.appendChild(editBtn);
+    const delBtn = el('button', { class: 'summary-memory-btn summary-memory-del', title: '删除', 'aria-label': '删除' });
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => onDelete(i));
+    ops.appendChild(delBtn);
+
+    item.appendChild(ops);
+    listEl.appendChild(item);
+  });
 }
 
-// ★ 长期记忆条目化操作
-// 编辑：弹窗修改文本并保存
-function editMemoryByIndex(i) {
-  if (i < 0 || i >= (state.memories || []).length) return;
-  const target = state.memories[i];
-  const next = prompt('修改这条长期记忆：', target.text || '');
-  if (next === null) return; // 取消
-  const trimmed = next.trim();
-  if (!trimmed) { toast('内容不能为空'); return; }
-  state.memories[i] = { ...target, text: trimmed };
-  saveState();
-  renderSummaryPanel();
-  toast('已保存 ✓');
+// 双区共用的条目化操作工厂：编辑弹窗 + 删除确认，落盘并刷新面板
+function _makeEditOp(zone, label) {
+  return function (i) {
+    const arr = state[zone] || [];
+    if (i < 0 || i >= arr.length) return;
+    const next = prompt(`修改这条${label}：`, arr[i].text || '');
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed) { toast('内容不能为空'); return; }
+    arr[i] = { ...arr[i], text: trimmed };
+    saveState();
+    renderSummaryPanel();
+    toast('已保存 ✓');
+  };
 }
-// 删除：立即从列表剔除，同步到底层 state.memories
-function deleteMemoryByIndex(i) {
-  if (i < 0 || i >= (state.memories || []).length) return;
-  if (!confirm('删除这条长期记忆？')) return;
-  state.memories.splice(i, 1);
-  saveState();
-  renderSummaryPanel();
-  toast('已删除');
+function _makeDelOp(zone, label) {
+  return function (i) {
+    const arr = state[zone] || [];
+    if (i < 0 || i >= arr.length) return;
+    if (!confirm(`删除这条${label}？`)) return;
+    arr.splice(i, 1);
+    saveState();
+    renderSummaryPanel();
+    toast('已删除');
+  };
 }
+
+// 区域 A：宏观周期摘要快照
+const editSnapshotByIndex = _makeEditOp('summaries', '周期摘要');
+const deleteSnapshotByIndex = _makeDelOp('summaries', '周期摘要');
+// 区域 B：关键事件小条目
+const editMemoryByIndex = _makeEditOp('memories', '关键事件小条目');
+const deleteMemoryByIndex = _makeDelOp('memories', '关键事件小条目');
 
 function saveJailbreak() {
   state.jailbreak = {
