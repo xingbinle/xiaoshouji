@@ -4,8 +4,8 @@
    策略：安装时预缓存核心资源，请求时缓存优先 + 后台更新
    ============================================ */
 
-const CACHE_NAME = 'xiaoshouji-v34-sol-persona'; // v34 cache bump: Sol 人设大更新
-const APP_VERSION_FOR_SW = 'v34'; // 与 app.js 保持，避免 UI 数字频繁跳动
+const CACHE_NAME = 'xiaoshouji-v35-equal-lover'; // v35 cache bump: 平等恋人+外形内化人设补充 & A区摘要漏字修复
+const APP_VERSION_FOR_SW = 'v35'; // 与 app.js 保持，避免 UI 数字频繁跳动
 const CORE_ASSETS = [
   './',
   './index.html',
