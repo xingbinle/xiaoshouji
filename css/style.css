@@ -1377,6 +1377,38 @@ a {
 }
 .quote-bar-x:hover { color: var(--ink); background: var(--sky-pale); border-color: var(--sky); }
 
+/* 小手机标题旁的小怪物装饰 + 菜单页右下角小怪物装饰 */
+.mp-deco-pixel {
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  margin-right: 8px;
+  opacity: 0.85;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.10));
+}
+.mp-menu-pixel-deco {
+  position: fixed;
+  right: 24px;
+  bottom: 88px;
+  width: 28px;
+  height: 28px;
+  opacity: 0.65;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  z-index: 5;
+  animation: pixel-float 4s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(218, 119, 86, 0.25));
+}
+.mp-menu-pixel-deco svg { width: 100%; height: 100%; }
+@keyframes pixel-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+
 /* 长线记忆（滚动总结）页面 */
 .summary-progress {
   display: flex;

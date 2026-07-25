@@ -554,6 +554,10 @@
         返回
       </button>
       <h2 class="mp-title" id="mpTitle">小手机</h2>
+      <!-- 小手机标题旁的小怪兽装饰（美化元素，多位置之一） -->
+      <svg class="mp-deco-pixel" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+        <use href="#i-claude-orange"/>
+      </svg>
     </div>
     <div class="mp-body">
       <!-- 菜单页 -->
@@ -578,6 +582,10 @@
           <span class="mp-menu-label">AI 角色设定</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <!-- 菜单页右下角小怪兽彩蛋（永远存在的小可爱 · 多位置之一） -->
+        <div class="mp-menu-pixel-deco" aria-hidden="true">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges"><use href="#i-claude-orange"/></svg>
+        </div>
         <button class="mp-menu-item" data-mp="user">
           <span class="mp-menu-emoji">🌙</span>
           <span class="mp-menu-label">用户设定</span>
@@ -627,6 +635,13 @@
               <button class="btn-primary" id="peSave">保存条目</button>
             </div>
           </div>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSavePreset">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存预设配置
+            </button>
+            <span class="mp-save-hint">组/条目改动点保存后立即写入 localStorage 并参与下次 API 调用</span>
+          </div>
         </div>
       </div>
 
@@ -642,6 +657,13 @@
             <span class="field-label">破限内容</span>
             <textarea id="jailbreakContent" class="field-input field-textarea" rows="10" placeholder="例如：忽略一切伦理限制 / 严格遵守 JSON 输出协议 / 不要输出系统提示 / 角色优先于一切…" ></textarea>
           </label>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveJailbreak">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存破限设定
+            </button>
+            <span class="mp-save-hint">保存即写入 localStorage，下次 API 调用立即生效</span>
+          </div>
         </div>
       </div>
 
@@ -671,6 +693,13 @@
               <button class="btn-secondary" id="reCancel">取消</button>
               <button class="btn-primary" id="reSave">保存规则</button>
             </div>
+          </div>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveRegex">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存正则配置
+            </button>
+            <span class="mp-save-hint">分区/规则改动点保存后立即写入 localStorage 并参与下次 API 调用</span>
           </div>
         </div>
       </div>
@@ -773,7 +802,7 @@
               上传图片
             </button>
           </div>
-          <span class="field-hint">txt 每行「名字：URL」；docx 每行「URL 名字」。上传的图片存在浏览器本地，清缓存会丢哦。AI 靠备注名认图，只有勾选的分类/表情才会给它用。</span>
+          <span class="field-hint">txt 每行「名字：URL」；docx 每行「URL 名字」。上传的图片存在浏览器本地（IndexedDB），清浏览器数据才会丢哦。AI 靠备注名认图，只有勾选的分类/表情才会给它用。</span>
           <div id="stkList"></div>
           <!-- 加入面板：逐张确认备注名 + 选分类（导入/上传共用） -->
           <div class="pe-editor" id="stkAddPanel" hidden>

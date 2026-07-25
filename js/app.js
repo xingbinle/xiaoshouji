@@ -104,7 +104,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v25'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v26'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -1249,11 +1249,62 @@ function enabledStickerPrompt() {
   return '【可用表情包】发 {"type":"sticker","name":"名字"} 就能发出对应图片，只能从下面清单里选名字：\n' + lines.join('\n');
 }
 
-// url 来源直接设 src；local 来源异步从 IndexedDB 取 Blob 填 src（统一加 lazy 防一次性并发）
+// 压缩表情包图片到 ≤200×200 jpeg 0.7（自动缩小体积，几十张不爆 IDB）
+async function compressStickerImage(blob) {
+  return await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const max = 200;
+      const scale = Math.min(max / img.width, max / img.height, 1);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob 返回空')), 'image/jpeg', 0.7);
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+// 检测当前浏览器存储用量（IDB + Cache + localStorage 共用）
+async function getStorageQuota() {
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const e = await navigator.storage.estimate();
+      return { usage: e.usage || 0, quota: e.quota || 0 };
+    }
+  } catch (e) {}
+  return null;
+}
+
+// 进入表情包管理时提示存储用量；超 50MB 建议上云
+async function showStickerStorageTip() {
+  const q = await getStorageQuota();
+  if (!q || !q.quota) return;
+  const usedMB = q.usage / 1024 / 1024;
+  const totalMB = q.quota / 1024 / 1024;
+  if (usedMB > 50) {
+    toast(`💾 浏览器已用 ${usedMB.toFixed(0)}MB / 总 ${totalMB.toFixed(0)}MB · 表情包多了建议导出/上云`);
+  } else if (usedMB > 20) {
+    toast(`💾 已用 ${usedMB.toFixed(0)}MB · 建议定期导出表情库做备份`);
+  }
+}
+
+// url 来源直接设 src；local 来源异步从 IndexedDB（失败时回退 Cache Storage）取 Blob 填 src
 function fillStickerImg(img, s) {
   try { img.loading = 'lazy'; img.decoding = 'async'; } catch (e) {}
   if (s.source === 'local') {
-    stkGetBlobURL(s.id).then((u) => { if (u) img.src = u; });
+    stkGetBlobURL(s.id).then((u) => {
+      if (u) { img.src = u; return; }
+      // IDB 拿不到 → 试 Cache Storage 兜底
+      caches.open('xiaoshouji-stickers-cache').then((cache) =>
+        cache.match(new Request(s.id)).then((r) => { if (r) img.src = URL.createObjectURL(r); })
+      );
+    });
   } else {
     img.src = s.url;
   }
@@ -1332,10 +1383,12 @@ async function confirmStickerAdd() {
   const cat = $('stkAddCat').value.trim() || '默认';
   const rows = _stkAddRows.filter((r) => r.name);
   if (!rows.length) { toast('至少保留一张有名字的图'); return; }
+  if (rows.length > 50) { toast('一次最多 50 张，太多会撑爆浏览器存储（分批来吧）'); return; }
   state.stickers = state.stickers || [];
   state.stickerCats = state.stickerCats || {};
   if (!(cat in state.stickerCats)) state.stickerCats[cat] = true;
   let added = 0;
+  let failed = 0;
   for (const r of rows) {
     // 同名同分类 → 覆盖旧条目（本地图顺手删旧 Blob）
     const dup = state.stickers.find((x) => (x.cat || '默认') === cat && x.name === r.name);
@@ -1345,7 +1398,22 @@ async function confirmStickerAdd() {
     }
     const id = 'stk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
     if (r.source === 'local') {
-      try { await stkPutBlob(id, r.blob); } catch (e) { toast('本地存储失败：' + e.message); continue; }
+      // ★ 入库前先压缩到 ≤200×200 jpeg 0.7，几十张图也不会撑爆 IDB
+      let toStore = r.blob;
+      try { toStore = await compressStickerImage(r.blob); } catch (e) { /* 压缩失败就用原图 */ }
+      try {
+        await stkPutBlob(id, toStore);
+      } catch (e) {
+        failed++;
+        // 配额爆了 → 立即降级到 Cache Storage
+        try {
+          const cache = await caches.open('xiaoshouji-stickers-cache');
+          await cache.put(new Request(id), new Response(toStore));
+        } catch (e2) {
+          toast(`本地存储失败：${e.message}（也试了 Cache Storage 兜底也不行）`);
+          continue;
+        }
+      }
       state.stickers.push({ id, name: r.name, cat, enabled: true, source: 'local', url: '' });
     } else {
       state.stickers.push({ id, name: r.name, cat, enabled: true, source: 'url', url: r.url });
@@ -2685,6 +2753,7 @@ function handleSticker() {
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
 const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）' };
+
 let mpCurrent = 'menu';
 
 function openMpView(page = 'menu') {
@@ -2712,7 +2781,7 @@ function navMp(page) {
     p.hidden = (p.id !== 'mpPage-' + page);
   });
   if (page === 'debug') renderDebugPanel();
-  if (page === 'sticker') renderStickerGroups();
+  if (page === 'sticker') { renderStickerGroups(); showStickerStorageTip(); }
   if (page === 'summary') renderSummaryPanel();
 }
 
@@ -2868,6 +2937,16 @@ function saveCurrentMpPage(btn) {
   } else if (page === 'summary') {
     state.summary = $('summaryContent').value;
     saveState();
+  } else if (page === 'jailbreak') {
+    state.jailbreak = {
+      enabled: $('jailbreakEnabled').checked,
+      content: $('jailbreakContent').value,
+    };
+    saveState();
+  } else if (page === 'preset') {
+    // 预设组+条目改动已经在 onChange 实时写入 saveState
+  } else if (page === 'regex') {
+    // 正则分区+规则改动已经在 onChange 实时写入 saveState
   } else {
     return;
   }
@@ -3429,6 +3508,9 @@ function init() {
   $('mpSaveUser').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
   $('mpSaveSticker').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
   $('mpSaveSummary').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSaveJailbreak').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSavePreset').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSaveRegex').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
   $('summarySave').addEventListener('click', () => { state.summary = $('summaryContent').value; saveState(); toast('摘要已保存 ✓'); renderSummaryPanel(); });
   $('summaryReset').addEventListener('click', () => {
     if (!confirm('清空当前宏观摘要？下次总结时会从头重新生成。')) return;
