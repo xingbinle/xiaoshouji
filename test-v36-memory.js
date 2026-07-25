@@ -22,8 +22,8 @@ const appVersion = appSrc.match(/const APP_VERSION = '([^']+)'/);
 const swVersion = swSrc.match(/const APP_VERSION_FOR_SW = '([^']+)'/);
 const cacheName = swSrc.match(/const CACHE_NAME = '([^']+)'/);
 total++; pass += check('APP_VERSION 与 SW 版本一致且为 v36',
-  appVersion && swVersion && appVersion[1] === swVersion[1] && appVersion[1] === 'v36' &&
-  cacheName && cacheName[1].includes('v36'));
+  appVersion && swVersion && appVersion[1] === swVersion[1] && appVersion[1] === 'v37' &&
+  cacheName && cacheName[1].includes('v37'));
 
 // 2. Prompt 层：连续性规则加入 DEFAULT_SYSTEM_PROMPT
 total++; pass += check('DEFAULT_SYSTEM_PROMPT 含 Conversation Continuity 规则',

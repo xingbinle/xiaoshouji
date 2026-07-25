@@ -218,7 +218,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v36'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v37'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
