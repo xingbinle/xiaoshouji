@@ -714,7 +714,7 @@
       <!-- 补充功能（破限板块） -->
       <div class="mp-page" id="mpPage-jailbreak" hidden>
         <div class="settings-group">
-          <span class="field-hint">破限指令会在 system prompt 里以最高优先级独立成块，稳稳压制模型。勾选启用后立刻生效；不勾选或留空时不会发给 API。</span>
+          <span class="field-hint">破限在 system prompt 里是<strong>第 ④ 层</strong>（位置：核心人设之后、酒馆预设之前），独立成块压制模型。勾选启用后立刻生效；不勾选或留空时不会发给 API。</span>
           <label class="field">
             <span class="field-label">启用破限板块</span>
             <input type="checkbox" id="jailbreakEnabled" checked>
@@ -747,7 +747,7 @@
               新建分区
             </button>
           </div>
-          <span class="field-hint">支持酒馆正则格式（findRegex/replaceString，$1 捕获组）；分区和单条都能独立开关</span>
+          <span class="field-hint">支持酒馆正则格式（findRegex/replaceString，$1 捕获组）；分区和单条都能独立开关<br>📍 <strong>位置</strong>：在发送前，<strong>规则作用于 user 输入</strong>（替换后再丢给 API）；在 AI 回复时，规则作用于 AI 输出的文本（替换后才显示在气泡里）。完全在 API 之外做事，不会污染聊天历史。</span>
           <div id="regexGroupList"></div>
           <!-- 正则规则编辑器（名称/匹配/替换） -->
           <div class="pe-editor" id="regexEditor" hidden>
@@ -773,27 +773,38 @@
       <!-- AI 角色设定 -->
       <div class="mp-page" id="mpPage-ai" hidden>
         <div class="settings-group">
+          <span class="field-hint" style="display:block;margin-bottom:12px;padding:8px;background:var(--sky-pale);border-radius:8px;border:1px solid var(--sky-light);font-size:11px;">
+            📋 <strong>保存后这两块发到 API 的顺序</strong>（从上到下，紧贴核心人设）：<br>
+            ① 硬编码 ABSOLUTE_CORE（Kiki 灵魂指令，永远置顶）<br>
+            ② <strong>预设内容</strong>（下面"预设内容"框）<br>
+            ③ 核心人设（DEFAULT_SYSTEM_PROMPT，含活人感/暧昧未定关系基调）<br>
+            ④ 破限板块<br>
+            ⑤ 酒馆预设 / ⑥ 世界书<br>
+            ⑦ <strong>角色设定（人设补充）</strong>（下面第一个 textarea）<br>
+            ⑧ 用户设定（在你"用户设定"页里）<br>
+            ⑨ 长线记忆 + 之前聊天的总结（自动注入）
+          </span>
           <label class="field">
             <span class="field-label">AI 名字</span>
             <input type="text" id="aiNameRole" class="field-input" placeholder="小克宝宝">
           </label>
           <label class="field">
-            <span class="field-label">角色设定（人设补充）</span>
+            <span class="field-label">角色设定（人设补充）→ 第 ⑦ 层</span>
             <textarea id="aiPersona" class="field-input field-textarea" rows="8" placeholder="补充 TA 的性格、口癖、和月月的关系设定…"></textarea>
-            <span class="field-hint">追加在默认人设之后；留空就是原味小克宝宝</span>
+            <span class="field-hint">追加在<strong>第 ⑦ 层【小克宝宝 的人设定义】</strong>槽位（位于世界书之后、用户设定之前）。留空就不发这段。</span>
           </label>
           <label class="field">
             <span class="field-label">拍一拍后缀（TA 拍你时显示）</span>
             <input type="text" id="aiPatSuffix" class="field-input" placeholder="的肩膀" maxlength="20">
           </label>
           <label class="field">
-            <span class="field-label">预设内容（专属常驻微调）</span>
+            <span class="field-label">预设内容（专属常驻微调）→ 第 ② 层</span>
             <input type="checkbox" id="aiPresetEnabled" checked>
             <span class="field-hint" style="display:inline;margin-left:8px;">启用后立即注入</span>
           </label>
           <label class="field">
             <textarea id="aiPresetContent" class="field-input field-textarea" rows="6" placeholder="小手机专属常驻微调设定…（留空=关闭）"></textarea>
-            <span class="field-hint">绝对第一层 → 你写在这里的微调 → 默认人设 → 破限 → 酒馆预设</span>
+            <span class="field-hint">位于<strong>第 ② 层【预设内容】</strong>槽位（紧贴 ABSOLUTE_CORE 之后、核心人设之前）。优先级比核心人设高，适合做"绝对优先指令"。</span>
           </label>
           <div class="mp-save-bar">
             <button class="mp-save-btn" id="mpSaveAi">
@@ -844,7 +855,7 @@
             <span class="field-label">拍一拍后缀（你拍 TA 时显示）</span>
             <input type="text" id="userPatSuffix" class="field-input" placeholder="的小脑袋" maxlength="20">
           </label>
-          <span class="field-hint">改完点保存，会写进 system prompt 给 AI 看</span>
+          <span class="field-hint">改完点保存，会写进 system prompt 给 AI 看<br>📍 <strong>位置：第 ⑧ 层【用户设定】</strong>（在 AI 角色设定之后、长线记忆之前）。</span>
           <div class="mp-save-bar">
             <button class="mp-save-btn" id="mpSaveUser">
               <svg class="icon-sm"><use href="#i-save"/></svg>

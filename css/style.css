@@ -2050,6 +2050,42 @@ a {
   white-space: pre-wrap;
   max-width: 240px;
 }
+/* ponytail: 用 class 替代 IDL `hidden` 属性 — iOS Safari 对 IDL hidden 反射到 attribute
+   时常漏属性，[hidden] CSS 选择器就不命中，transcript 一直显。class toggle 万无一失 */
+/* 内联消息编辑器（替代 window.prompt，iOS Safari 会禁用 prompt） */
+.inline-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--sky-pale);
+  border: 1px dashed var(--sky);
+  border-radius: var(--r-md);
+  min-width: 220px;
+  max-width: 320px;
+}
+.inline-editor .field-textarea {
+  font-size: 13px;
+  min-height: 60px;
+}
+.inline-editor-btns {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.inline-editor-btns button {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 12px;
+  min-width: auto;
+}
+
+/* ponytail: 用 class 替代 IDL `hidden` 属性 — iOS Safari 对 IDL hidden 反射到 attribute
+   时常漏属性，[hidden] CSS 选择器就不命中，transcript 一直显。class toggle 万无一失 */
+.voice-transcript.is-hidden {
+  display: none !important;
+}
 
 .bubble-voice {
   padding: 10px 14px;
