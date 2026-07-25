@@ -144,11 +144,11 @@ console.log('[4] maybeRollSummary 滚动总结');
   await app.maybeRollSummary();
   check('总结已更新', s.summary === '合并后的新总结');
   check('长期记忆已提取', s.memories.length === 1 && s.memories[0].text === '月月喜欢淡蓝色');
-  check('边界前移 30', s.summaryBoundary === 30);
+  check('边界前移 20', s.summaryBoundary === 20);
   check('调用了 1 次 API', calls === 1);
 
   await app.maybeRollSummary(); // 没有新消息，不该再调
-  check('不足 30 条不再调用', calls === 1);
+  check('不足 20 条不再调用', calls === 1);
 
   // 边界钳位：删消息后边界越界 → 自动拉回
   s.summaryBoundary = 50;

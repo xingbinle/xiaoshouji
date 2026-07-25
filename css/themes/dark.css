@@ -54,6 +54,8 @@
     radial-gradient(circle at 34% 76%, rgba(242, 235, 224, 0.06) 0 1px, transparent 1.5px),
     radial-gradient(circle at 92% 84%, rgba(125, 176, 224, 0.08) 0 1px, transparent 1.5px);
   background-size: auto, 71px 79px, 113px 127px, 97px 109px, 151px 137px;
+  /* 背景层固定：消息滚动时星空光晕雷打不动（微信同款） */
+  background-attachment: fixed, fixed, fixed, fixed, fixed;
 }
 
 /* === 顶部栏 === */

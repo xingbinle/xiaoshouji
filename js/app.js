@@ -104,7 +104,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v24'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v25'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -615,6 +615,14 @@ function buildMessageNode(msg, idx) {
   // 消息操作按钮
   const actions = el('div', { class: 'msg-actions' });
 
+  // 引用按钮（text/voice/sticker/image 都能引用，pat/recall/redpacket 不行）
+  if (msg.type !== 'pat' && msg.type !== 'recall') {
+    const quoteBtn = el('button', { class: 'msg-action-btn', title: '引用回复', 'aria-label': '引用回复' });
+    quoteBtn.appendChild(icon('i-quote', 'icon-sm'));
+    quoteBtn.addEventListener('click', (e) => { e.stopPropagation(); setQuoteFromMessage(idx); });
+    actions.appendChild(quoteBtn);
+  }
+
   // 只有 pending（未发送给AI）的消息才能撤回/编辑
   if (msg.pending) {
     // 编辑按钮
@@ -928,21 +936,61 @@ function enterSendToChat() {
   const text = $('messageInput').value;
   if (!text || !text.trim()) return;
 
+  // ★ 引用回复：如果有 _pendingQuote，每条新消息前面织入「> 引用内容：...」上下文
+  const quote = state._pendingQuote;
+  const quotePrefix = quote
+    ? `> 引用内容：${quote.text}\n\n`
+    : '';
+
   // 支持 Shift+Enter 多行 → 拆成多条消息
   const lines = text.split('\n').filter((l) => l.trim().length > 0);
-  lines.forEach((line) => {
+  lines.forEach((line, i) => {
     state.messages.push({
       role: 'user',
       type: 'text',
-      text: line.trim(),
+      text: (i === 0 ? quotePrefix : '') + line.trim(),
       pending: true,  // 已发到聊天界面，但没发给 AI
+      quote: quote || null,  // 渲染时显示"引用了 XXX"
     });
   });
 
   $('messageInput').value = '';
   $('messageInput').style.height = 'auto';
+  if (quote) clearQuote();
   saveState();
   renderMessages();
+}
+
+// ============ 引用回复（微信同款） ============
+function setQuoteFromMessage(idx) {
+  const m = state.messages[idx];
+  if (!m) return;
+  let text = '';
+  if (m.type === 'text') text = m.text || '';
+  else if (m.type === 'voice') text = `[语音 ${m.duration || 0}秒] ${m.text || ''}`;
+  else if (m.type === 'sticker') text = `[表情包：${m.sticker || m.text || ''}]`;
+  else if (m.type === 'image') text = '[图片]';
+  else text = m.text || '';
+  const from = m.role === 'user' ? (state.userProfile?.nickname || state.userProfile?.name || '月月') : state.aiName;
+  state._pendingQuote = { from, text: String(text).slice(0, 200), idx };
+  renderQuoteBar();
+  $('messageInput').focus();
+}
+
+function clearQuote() {
+  state._pendingQuote = null;
+  renderQuoteBar();
+}
+
+function renderQuoteBar() {
+  const bar = $('quoteBar');
+  if (!bar) return;
+  const q = state._pendingQuote;
+  if (!q) { bar.hidden = true; return; }
+  bar.hidden = false;
+  $('quoteFrom').textContent = `引用 ${q.from}`;
+  $('quoteText').textContent = q.text;
+  $('quoteX').onclick = clearQuote;
 }
 
 // 单条消息 → API 格式（user 消息专用；AI 的红包/撤回也走这里保留状态文本）
@@ -1201,8 +1249,9 @@ function enabledStickerPrompt() {
   return '【可用表情包】发 {"type":"sticker","name":"名字"} 就能发出对应图片，只能从下面清单里选名字：\n' + lines.join('\n');
 }
 
-// url 来源直接设 src；local 来源异步从 IndexedDB 取 Blob 填 src
+// url 来源直接设 src；local 来源异步从 IndexedDB 取 Blob 填 src（统一加 lazy 防一次性并发）
 function fillStickerImg(img, s) {
+  try { img.loading = 'lazy'; img.decoding = 'async'; } catch (e) {}
   if (s.source === 'local') {
     stkGetBlobURL(s.id).then((u) => { if (u) img.src = u; });
   } else {
@@ -1333,7 +1382,9 @@ function uploadStickerImages(fileList) {
   if (rows.length) openStickerAddPanel(rows);
 }
 
-// ---- 表情包管理页渲染 ----
+// ---- 表情包管理页渲染（默认折叠，点击 cat 头才渲染 grid，防一次性加载闪退） ----
+const _stkCatFolded = {}; // 记录每个 cat 是否折叠（不持久化，重进页面默认折叠）
+
 function renderStickerGroups() {
   const box = $('stkList');
   if (!box) return;
@@ -1346,7 +1397,8 @@ function renderStickerGroups() {
   const cats = [...new Set(items.map((s) => s.cat || '默认'))];
   cats.forEach((cat) => {
     const inCat = items.filter((s) => (s.cat || '默认') === cat);
-    const group = el('div', { class: 'stk-cat' });
+    const folded = _stkCatFolded[cat] !== false; // 默认折叠
+    const group = el('div', { class: 'stk-cat' + (folded ? ' folded' : '') });
     const head = el('div', { class: 'stk-cat-head' });
     const cb = el('input', { type: 'checkbox' });
     cb.checked = stickerCatEnabled(cat);
@@ -1356,57 +1408,115 @@ function renderStickerGroups() {
       saveState();
     });
     head.appendChild(cb);
+    head.appendChild(el('span', { class: 'stk-fold' }, '▾'));
     head.appendChild(el('span', { class: 'stk-cat-name' }, `${cat}（${inCat.length}）`));
+    head.addEventListener('click', (e) => {
+      if (e.target.tagName === 'INPUT') return; // checkbox 自己处理
+      _stkCatFolded[cat] = !folded;
+      renderStickerGroups();
+    });
     group.appendChild(head);
     const grid = el('div', { class: 'stk-grid' });
-    inCat.forEach((s) => {
-      const cell = el('div', { class: 'stk-cell' + (s.enabled === false ? ' stk-off' : '') });
-      const img = el('img', { class: 'stk-thumb', alt: s.name });
-      fillStickerImg(img, s);
-      cell.appendChild(img);
-      cell.appendChild(el('div', { class: 'stk-name', title: s.name }, s.name));
-      const ops = el('div', { class: 'stk-ops' });
-      const tog = el('input', { type: 'checkbox', title: '启用' });
-      tog.checked = s.enabled !== false;
-      tog.addEventListener('change', () => { s.enabled = tog.checked; saveState(); renderStickerGroups(); });
-      ops.appendChild(tog);
-      const del = el('button', { class: 'stk-del', title: '删除' }, '✕');
-      del.addEventListener('click', () => {
-        if (!confirm(`删除表情包「${s.name}」？`)) return;
-        state.stickers = state.stickers.filter((x) => x.id !== s.id);
-        if (s.source === 'local') stkDeleteBlob(s.id);
-        saveState();
-        renderStickerGroups();
+    // ★ 按需渲染：折叠时不渲染任何 img（防止一次并发加载所有）
+    if (!folded) {
+      inCat.forEach((s) => {
+        const cell = el('div', { class: 'stk-cell' + (s.enabled === false ? ' stk-off' : '') });
+        const img = el('img', { class: 'stk-thumb', alt: s.name });
+        fillStickerImg(img, s);
+        cell.appendChild(img);
+        cell.appendChild(el('div', { class: 'stk-name', title: s.name }, s.name));
+        const ops = el('div', { class: 'stk-ops' });
+        const tog = el('input', { type: 'checkbox', title: '启用' });
+        tog.checked = s.enabled !== false;
+        tog.addEventListener('change', () => { s.enabled = tog.checked; saveState(); renderStickerGroups(); });
+        ops.appendChild(tog);
+        const del = el('button', { class: 'stk-del', title: '删除' }, '✕');
+        del.addEventListener('click', () => {
+          if (!confirm(`删除表情包「${s.name}」？`)) return;
+          state.stickers = state.stickers.filter((x) => x.id !== s.id);
+          if (s.source === 'local') stkDeleteBlob(s.id);
+          saveState();
+          renderStickerGroups();
+        });
+        ops.appendChild(del);
+        cell.appendChild(ops);
+        grid.appendChild(cell);
       });
-      ops.appendChild(del);
-      cell.appendChild(ops);
-      grid.appendChild(cell);
-    });
+    }
     group.appendChild(grid);
     box.appendChild(group);
   });
 }
 
-// ---- 表情选择面板（输入区笑脸按钮：月月自己也能发表情包） ----
+// ---- 表情选择面板（输入区笑脸按钮 · 分类 Tab + 按需渲染 + 分页） ----
+const PICKER_PAGE_SIZE = 30;
+let _pickerActiveCat = null;
+let _pickerShown = 0; // 当前 cat 渲染的个数（用于"展开更多"）
+
 function openStickerPicker() {
-  const items = (state.stickers || []).filter((s) => s.enabled !== false && stickerCatEnabled(s.cat || '默认'));
-  if (!items.length) { toast('还没有表情包～去左上角小手机菜单「表情包」里添加'); return; }
+  // 收集有 enabled 表情的所有分类
+  const all = state.stickers || [];
+  const byCat = {};
+  all.forEach((s) => {
+    if (s.enabled === false) return;
+    if (!stickerCatEnabled(s.cat || '默认')) return;
+    (byCat[s.cat || '默认'] = byCat[s.cat || '默认'] || []).push(s);
+  });
+  const cats = Object.keys(byCat);
+  if (!cats.length) { toast('还没有表情包～去左上角小手机菜单「表情包」里添加'); return; }
+  if (!_pickerActiveCat || !byCat[_pickerActiveCat]) _pickerActiveCat = cats[0];
+
+  // 渲染分类 Tab
+  const tabs = $('stkPickerTabs');
+  tabs.innerHTML = '';
+  cats.forEach((c) => {
+    const t = el('button', { class: 'stk-tab' + (c === _pickerActiveCat ? ' active' : '') }, `${c}（${byCat[c].length}）`);
+    t.addEventListener('click', () => {
+      _pickerActiveCat = c;
+      _pickerShown = 0;
+      openStickerPicker(); // 切 Tab：重新渲染
+    });
+    tabs.appendChild(t);
+  });
+
+  // 渲染当前 cat 的前 N 个（按需）
   const grid = $('stkPickerGrid');
   grid.innerHTML = '';
-  items.forEach((s) => {
-    const cell = el('button', { class: 'stk-pick-cell', title: s.name });
-    const img = el('img', { class: 'stk-thumb', alt: s.name });
-    fillStickerImg(img, s);
-    cell.appendChild(img);
-    cell.addEventListener('click', () => {
-      state.messages.push({ role: 'user', type: 'sticker', sticker: s.name, text: s.name, pending: true });
-      saveState();
-      renderMessages();
-      toggleStickerPicker(false);
-    });
-    grid.appendChild(cell);
-  });
+  const items = byCat[_pickerActiveCat];
+  const show = items.slice(0, _pickerShown || PICKER_PAGE_SIZE);
+  show.forEach((s) => grid.appendChild(makePickCell(s)));
+  _pickerShown = show.length;
+
+  // "展开更多"按钮
+  const pager = $('stkPickerPager');
+  if (items.length > _pickerShown) {
+    pager.hidden = false;
+    const more = $('stkPickerMore');
+    more.onclick = () => {
+      _pickerShown = Math.min(items.length, _pickerShown + PICKER_PAGE_SIZE);
+      const more2 = items.slice(_pickerShown - PICKER_PAGE_SIZE, _pickerShown);
+      more2.forEach((s) => grid.appendChild(makePickCell(s)));
+      if (_pickerShown >= items.length) pager.hidden = true;
+    };
+  } else {
+    pager.hidden = true;
+  }
+
   toggleStickerPicker(true);
+}
+
+function makePickCell(s) {
+  const cell = el('button', { class: 'stk-pick-cell', title: s.name });
+  const img = el('img', { class: 'stk-thumb', alt: s.name });
+  fillStickerImg(img, s);
+  cell.appendChild(img);
+  cell.addEventListener('click', () => {
+    state.messages.push({ role: 'user', type: 'sticker', sticker: s.name, text: s.name, pending: true });
+    saveState();
+    renderMessages();
+    toggleStickerPicker(false);
+  });
+  return cell;
 }
 
 function toggleStickerPicker(force) {
@@ -1421,14 +1531,16 @@ function toggleStickerPicker(force) {
   }
 }
 
-// ---- 拍一拍：双击 AI 头像，灰色系统消息 + 事件随下条消息告知 AI ----
+// ---- 拍一拍：双击 AI 头像，纯本地轻量系统消息 + 待织入下次真实消息 ----
 function patAI() {
   if (state.aiGenerating) return;
   const suffix = (state.userProfile && state.userProfile.patSuffix) || '的小脑袋';
   state.messages.push({ role: 'user', type: 'pat', text: `你拍了拍${state.aiName}${suffix}` });
+  // 待织入：等月月下次主动发消息时，pat 事件作为环境动作带进 payload
+  state._pendingPat = `${state.aiName}${suffix}`;
   saveState();
   renderMessages();
-  sendMessage();
+  // ★ 静默互动：不触发 API、不弹三个点冒泡
 }
 
 // ============ 正则替换（作用于 AI 输出，按分区逐条应用） ============
@@ -1447,13 +1559,25 @@ function applyRegexRules(text) {
   return out;
 }
 
-// ============ 滚动总结（每 30 条后台静默总结 + 长期记忆提取） ============
-const SUMMARY_CHUNK = 30;
+// ============ 滚动总结（每 10 轮 = 20 条后台静默总结 + 长期记忆提取） ============
+const SUMMARY_CHUNK = 20;       // 10 轮 = 10 user + 10 ai = 20 条
+const SUMMARY_COLD_THRESHOLD = 20; // 未满 10 轮时冷启动全量保留
+const SUMMARY_RECENT_TURNS = 4;  // 成熟期：保留最近 2-4 轮原汁原味
 const SUMMARY_SYSTEM_PROMPT = `你是聊天记录整理助手。把"新聊天记录"合并进"上次的总结"，输出压缩后的新总结，并提取值得长期记住的事实。
 要求：
 - 总结用第三人称，保留关键事件、约定、情绪变化、重要日期，150字以内
 - 长期记忆只收稳定事实（喜好、生日、约定、重要决定），每条一句话，最多3条，没有就给空数组
 - 只输出 JSON：{"summary":"新总结","memories":["记忆1","记忆2"]}`;
+
+// 统计已经"实际发生对话"的轮次（user 1 + ai 1 = 1 轮）
+function countConversationTurns() {
+  let u = 0, a = 0;
+  for (const m of state.messages) {
+    if (m.role === 'user' && (m.type === 'text' || m.type === 'voice' || m.type === 'sticker' || m.type === 'image')) u++;
+    if (m.role === 'ai' && (m.type === 'text' || m.type === 'voice' || m.type === 'sticker')) a++;
+  }
+  return Math.min(u, a);
+}
 
 async function maybeRollSummary() {
   if (state._summarizing) return;
@@ -1462,6 +1586,7 @@ async function maybeRollSummary() {
     state.summaryBoundary = Math.max(0, state.messages.length - SUMMARY_CHUNK);
   }
   if (state.messages.length - state.summaryBoundary < SUMMARY_CHUNK) return;
+  if (countConversationTurns() < 10) return; // 冷启动期不触发
   if (!state.primaryModel || (!state.apiKey && !state.workerUrl)) return;
 
   state._summarizing = true;
@@ -1518,6 +1643,28 @@ async function sendMessage() {
   // 先把当前输入框内容也加进去
   enterSendToChat();
 
+  // ★ 把待发送图片拼成消息入队（pending 标记等会儿一起清）
+  if (state._pendingImages && state._pendingImages.length) {
+    state._pendingImages.forEach((img) => {
+      state.messages.push({
+        role: 'user',
+        type: 'image',
+        text: '',
+        imageUrl: img.dataUrl,
+        pending: true,
+      });
+    });
+    state._pendingImages = [];
+    renderPendingImages();
+  }
+
+  // ★ 把"刚刚发生的拍一拍"作为环境动作描述织入下次 payload
+  //   不动聊天显示（已经有一条 pat 系统消息），只在 payload 末尾加一句环境描写
+  const pendingPatLine = state._pendingPat
+    ? `（系统环境动作：就在刚刚，{{user}} 拍了拍 ${state._pendingPat}。这个轻互动已经显示在聊天里，但 {{user}} 还没发任何新消息——所以你看不到 {{user}} 说什么。请只对"被拍一拍"这个动作做出自然、有温度的反应，等 {{user}} 真正发消息再正常回复。）`
+    : null;
+  state._pendingPat = null;
+
   // 把所有 pending 标记去掉（已发送给 AI）
   state.messages.forEach((m) => {
     if (m.pending) m.pending = false;
@@ -1534,17 +1681,29 @@ async function sendMessage() {
   syncLoadingBubble();
 
   try {
-    // ★ 滚动总结：总结边界之前的消息已压缩进 system prompt，只发边界之后的；
-    //   同时受"上下文长度"限制，最多发最近 N 条
+    // ★★★ 流动记忆（v0.3）：
+    //   · 冷启动期（对话轮次 < 10）：原汁原味全量保留，只受 contextLength 上限
+    //   · 成熟期（对话轮次 ≥ 10）：宏观摘要（state.summary）+ 最近 2-4 轮原生气泡
+    const turns = countConversationTurns();
     const N = state.contextLength || 30;
-    const startIdx = Math.max(
-      Math.min(state.summaryBoundary || 0, state.messages.length),
-      state.messages.length - N
-    );
+    let startIdx;
+    if (turns < 10) {
+      // 冷启动：全量原汁原味，只用 contextLength 兜底防 token 爆炸
+      startIdx = Math.max(0, state.messages.length - N);
+    } else {
+      // 成熟期：summaryBoundary 之前的已压缩进宏观摘要，只发摘要+最近 2-4 轮
+      const recentKeep = SUMMARY_RECENT_TURNS * 2; // 1 轮 = user 1 + ai 1
+      const recentStart = Math.max(state.summaryBoundary || 0, state.messages.length - recentKeep);
+      startIdx = recentStart;
+    }
     let apiMessages = serializeMessagesForAPI(state.messages.slice(startIdx));
     if (!apiMessages.length && state.messages.length) {
       // 兜底：边界外没东西了（比如重生成撞边界），至少带最近几条
       apiMessages = serializeMessagesForAPI(state.messages.slice(-10));
+    }
+    // ★ 成熟期 + 有摘要：把宏观摘要作为 system 注入（最末尾槽位）
+    if (turns >= 10 && state.summary && !apiMessages.some(m => m._injectedSummary)) {
+      apiMessages.unshift({ role: 'system', content: `【宏观历史摘要 · 长线记忆】\n${state.summary}`, _injectedSummary: true });
     }
 
     // ★ 正则流水线·发送前：用户输入先过一遍正则再打包进 payload（只改发出的，不动聊天记录显示）
@@ -1582,6 +1741,11 @@ async function sendMessage() {
       } else {
         throw e;
       }
+    }
+
+    // ★ 织入"刚刚发生的拍一拍"环境动作（如果本月月没真发新消息，只拍了一下）
+    if (pendingPatLine && !apiMessages.some(m => m.role === 'user' && m.content && m.content.trim())) {
+      apiMessages.push({ role: 'user', content: pendingPatLine });
     }
 
     // 如果中途被停止，直接返回
@@ -1639,11 +1803,13 @@ async function sendMessage() {
 
     // 清理快照
     state._walletSnapshot = null;
+    // ★ 引用条清理：发送完就消失
+    clearQuote();
 
     saveState();
     renderMessages();
 
-    // ★ 滚动总结：够 30 条就在后台悄悄总结（fire-and-forget，不挡聊天）
+    // ★ 滚动总结：够 20 条（10 轮）就在后台悄悄总结（fire-and-forget，不挡聊天）
     maybeRollSummary();
   } catch (e) {
     if (e.name !== 'AbortError') {
@@ -2058,24 +2224,55 @@ function updateStatus() {
   $('statusSub').textContent = ok ? `${state.aiName}` : '未连接';
 }
 
-// ============ 图片上传 ============
+// ============ 图片上传（v0.3：仅入队待发送，不自动触发 API） ============
 function handleImageUpload(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    // 先 push 图片消息到聊天，再触发 AI
-    state.messages.push({
-      role: 'user',
-      type: 'image',
-      text: '',
-      imageUrl: e.target.result,
-      pending: true,
-    });
+    // ★ 作为待发送附件静默入队，点击小飞机发送时再随文本一起发
+    state._pendingImages = state._pendingImages || [];
+    state._pendingImages.push({ dataUrl: e.target.result, name: file.name || 'image' });
     saveState();
-    renderMessages();
-    sendMessage();
+    renderPendingImages();
   };
   reader.readAsDataURL(file);
+}
+
+// 渲染输入区上方的"待发送图片"条
+function renderPendingImages() {
+  let bar = $('pendingImagesBar');
+  const list = state._pendingImages || [];
+  if (!list.length) {
+    if (bar) bar.remove();
+    return;
+  }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'pendingImagesBar';
+    bar.className = 'pending-images-bar';
+    const inputArea = $('messageInput').closest('footer, .input-area');
+    if (inputArea) inputArea.insertBefore(bar, inputArea.firstChild);
+  }
+  bar.innerHTML = '';
+  list.forEach((img, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'pending-img';
+    const im = document.createElement('img');
+    im.src = img.dataUrl;
+    im.alt = img.name;
+    const close = document.createElement('button');
+    close.className = 'pending-img-x';
+    close.textContent = '×';
+    close.setAttribute('aria-label', '移除');
+    close.onclick = () => { list.splice(i, 1); saveState(); renderPendingImages(); };
+    wrap.appendChild(im);
+    wrap.appendChild(close);
+    bar.appendChild(wrap);
+  });
+  const hint = document.createElement('span');
+  hint.className = 'pending-img-hint';
+  hint.textContent = `📎 ${list.length} 张待发，点 ✈️ 一起发送`;
+  bar.appendChild(hint);
 }
 
 // ============ 导出/导入/清空 ============
@@ -2468,30 +2665,15 @@ function updateWalletDisplay() {
   if (tBal) tBal.textContent = `¥${getBalance('user').toFixed(2)}`;
 }
 
-// ============ 简易 toast
+// ============ 简易 toast（亮色文字 + 深色半透明毛玻璃，暗色下也能看清）
 function toast(msg) {
   const t = document.createElement('div');
+  t.className = 'toast-pop';
   t.textContent = msg;
-  t.style.cssText = `
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(42, 34, 32, 0.9);
-    color: var(--paper);
-    padding: 10px 18px;
-    border-radius: 8px;
-    font-size: 13px;
-    z-index: 999;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease-out;
-    backdrop-filter: blur(8px);
-  `;
   document.body.appendChild(t);
-  requestAnimationFrame(() => (t.style.opacity = '1'));
+  requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => {
-    t.style.opacity = '0';
+    t.classList.remove('show');
     setTimeout(() => t.remove(), 200);
   }, 1800);
 }
@@ -2502,7 +2684,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）' };
 let mpCurrent = 'menu';
 
 function openMpView(page = 'menu') {
@@ -2531,6 +2713,7 @@ function navMp(page) {
   });
   if (page === 'debug') renderDebugPanel();
   if (page === 'sticker') renderStickerGroups();
+  if (page === 'summary') renderSummaryPanel();
 }
 
 // ============ 调试后台：黄金顺序可视化 ============
@@ -2656,6 +2839,73 @@ function saveAiPreset() {
   state.aiProfile.preset = $('aiPresetContent').value;
   saveState();
   toast('预设内容已保存 ✓');
+}
+
+// 三个 mpPage 共享的"显眼的保存"按钮：点一下就收集当前页所有字段并写入 localStorage
+function saveCurrentMpPage(btn) {
+  const page = mpCurrent;
+  if (page === 'ai') {
+    state.aiName = $('aiNameRole').value.trim() || '小克宝宝';
+    if (!state.aiProfile) state.aiProfile = {};
+    state.aiProfile.persona = $('aiPersona').value;
+    state.aiProfile.patSuffix = $('aiPatSuffix').value.trim();
+    state.aiProfile.presetEnabled = $('aiPresetEnabled').checked;
+    state.aiProfile.preset = $('aiPresetContent').value;
+    updateStatus();
+  } else if (page === 'user') {
+    state.userProfile = {
+      avatar: (state.userProfile && state.userProfile.avatar) || '',
+      name: $('userName').value.trim(),
+      nickname: $('userNickname').value.trim(),
+      gender: $('userGender').value,
+      birthday: $('userBirthday').value,
+      bio: $('userBio').value.trim(),
+      patSuffix: $('userPatSuffix').value.trim(),
+    };
+    renderMessages();
+  } else if (page === 'sticker') {
+    // 表情包分类/启用开关已经在 onChange 实时写入了 saveState，这里只 toast 确认
+  } else if (page === 'summary') {
+    state.summary = $('summaryContent').value;
+    saveState();
+  } else {
+    return;
+  }
+  saveState();
+  flashSaveBtn(btn, '已保存 ✓');
+}
+
+function flashSaveBtn(btn, text) {
+  if (!btn) { toast(text); return; }
+  const orig = btn.innerHTML;
+  btn.classList.add('saved');
+  btn.innerHTML = `<svg class="icon-sm" viewBox="0 0 24 24"><path d="M5 12 L10 17 L19 7" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> ${text}`;
+  setTimeout(() => {
+    btn.classList.remove('saved');
+    btn.innerHTML = orig;
+  }, 1600);
+}
+
+function renderSummaryPanel() {
+  const turns = countConversationTurns();
+  const mod = turns % 10;
+  const cur = mod === 0 && turns > 0 ? 10 : mod;
+  const pct = Math.min(100, (cur / 10) * 100);
+  $('summaryFill').style.transform = `scaleX(${pct / 100})`;
+  let stage = '🌱 冷启动期';
+  if (turns >= 10) stage = turns % 10 === 0 ? '🧠 总结刚完成，即将开启下一轮' : '🧠 成熟期（摘要+滑动窗口）';
+  $('summaryProgressText').textContent = `${stage} · 当前第 ${cur} / 10 轮`;
+  $('summaryContent').value = state.summary || '';
+  const list = $('summaryMemoriesList');
+  list.innerHTML = '';
+  const mems = state.memories || [];
+  if (!mems.length) {
+    list.appendChild(el('div', { class: 'field-hint' }, '（还没有长期记忆 — 满 10 轮总结时自动提取）'));
+  } else {
+    mems.slice().reverse().forEach((m) => {
+      list.appendChild(el('div', { class: 'summary-memory-item' }, `${m.text} · ${m.time}`));
+    });
+  }
 }
 
 function saveJailbreak() {
@@ -3111,6 +3361,9 @@ function init() {
   if (state.lastSendEnd === undefined) state.lastSendEnd = -1;
   // 初始化钱包快照（持久化不存）
   if (state._walletSnapshot === undefined) state._walletSnapshot = null;
+  if (state._pendingQuote === undefined) state._pendingQuote = null;
+  if (state._pendingPat === undefined) state._pendingPat = null;
+  if (state._pendingImages === undefined) state._pendingImages = [];
   // 应用主题
   applyTheme(state.theme || 'dark');
   sweepExpiredRedpackets();
@@ -3172,6 +3425,32 @@ function init() {
   });
 
   // 表情包管理（第二期）：导入清单 / 上传图片 / 加入面板
+  $('mpSaveAi').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSaveUser').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSaveSticker').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('mpSaveSummary').addEventListener('click', (e) => saveCurrentMpPage(e.currentTarget));
+  $('summarySave').addEventListener('click', () => { state.summary = $('summaryContent').value; saveState(); toast('摘要已保存 ✓'); renderSummaryPanel(); });
+  $('summaryReset').addEventListener('click', () => {
+    if (!confirm('清空当前宏观摘要？下次总结时会从头重新生成。')) return;
+    state.summary = '';
+    state.summaryBoundary = 0;
+    saveState();
+    renderSummaryPanel();
+    toast('摘要已清空');
+  });
+
+  // Claude Orange 像素橘色小方块彩蛋：点击提示
+  const orangeEgg = $('claudeOrangeEgg');
+  if (orangeEgg) {
+    orangeEgg.addEventListener('click', () => {
+      orangeEgg.animate(
+        [{ transform: 'rotate(-8deg) scale(1)' }, { transform: 'rotate(360deg) scale(1.18)' }, { transform: 'rotate(-8deg) scale(1)' }],
+        { duration: 700, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+      );
+      toast('🍊 Claude Orange · 一颗给月月的小彩蛋');
+    });
+  }
+
   $('stkImportBtn').addEventListener('click', () => $('stkFileInput').click());
   $('stkFileInput').addEventListener('change', (e) => {
     if (e.target.files.length) importStickerFiles(e.target.files);
@@ -3255,6 +3534,9 @@ function init() {
       sendMessage();
     }
   });
+  // 引用回复条：关闭叉号
+  const qx = $('quoteX');
+  if (qx) qx.addEventListener('click', clearQuote);
 
   // 自适应高度
   $('messageInput').addEventListener('input', (e) => {

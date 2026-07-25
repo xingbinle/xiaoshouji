@@ -24,9 +24,9 @@
     }
     #appLoading .paw {
       width: 48px; height: 48px;
-      animation: appLoadBounce 1.2s ease infinite;
+      animation: appLoadFloat 1.2s ease-out infinite;
     }
-    @keyframes appLoadBounce {
+    @keyframes appLoadFloat {
       0%, 100% { transform: translateY(0); opacity: 0.6; }
       50% { transform: translateY(-12px); opacity: 1; }
     }
@@ -156,6 +156,26 @@
     <ellipse cx="9" cy="5" rx="2" ry="2.8" fill="currentColor"/>
     <ellipse cx="15" cy="5" rx="2" ry="2.8" fill="currentColor"/>
   </symbol>
+  <!-- Claude Code 官方像素小怪物（#DA7756 橘色 + 像素颗粒感） -->
+  <symbol id="i-claude-orange" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <!-- 顶部两个小角（突起） -->
+    <rect x="5" y="1" width="2" height="2" fill="#DA7756"/>
+    <rect x="9" y="1" width="2" height="2" fill="#DA7756"/>
+    <!-- 主体大矩形 -->
+    <rect x="2" y="3" width="12" height="8" fill="#DA7756"/>
+    <!-- 高光（左上小亮块） -->
+    <rect x="3" y="4" width="1" height="1" fill="#E8956F" opacity="0.85"/>
+    <rect x="4" y="4" width="1" height="1" fill="#E8956F" opacity="0.5"/>
+    <!-- 阴影（右下暗块） -->
+    <rect x="12" y="9" width="1" height="1" fill="#B85F40" opacity="0.75"/>
+    <rect x="11" y="10" width="1" height="1" fill="#B85F40" opacity="0.55"/>
+    <!-- 两只眼睛 -->
+    <rect x="5" y="6" width="1" height="2" fill="#1B1614"/>
+    <rect x="10" y="6" width="1" height="2" fill="#1B1614"/>
+    <!-- 底部两条小脚 -->
+    <rect x="4" y="11" width="2" height="3" fill="#DA7756"/>
+    <rect x="10" y="11" width="2" height="3" fill="#DA7756"/>
+  </symbol>
   <!-- 盾牌 -->
   <symbol id="i-shield" viewBox="0 0 24 24">
     <path d="M12 2.5 L20 5.5 L20 12 C20 16.5 16.5 20.5 12 22 C7.5 20.5 4 16.5 4 12 L4 5.5 Z" fill="currentColor"/>
@@ -220,6 +240,10 @@
     <path d="M14.5 4 L20 9.5 L9 20.5 L3 21 L3.5 15 Z" fill="currentColor"/>
     <path d="M13 5.5 L18.5 11" stroke="white" stroke-width="1.5" fill="none" opacity="0.3"/>
   </symbol>
+  <!-- 引用（回旋引号） -->
+  <symbol id="i-quote" viewBox="0 0 24 24">
+    <path d="M4 6 L4 16 C4 18 5 19 7 19 L9 19 L9 17 L7 17 C6 17 6 17 6 16 L6 12 L11 12 L11 6 Z M15 6 L15 16 C15 18 16 19 18 19 L20 19 L20 17 L18 17 C17 17 17 17 17 16 L17 12 L22 12 L22 6 Z" fill="currentColor" transform="rotate(180 13 12.5)"/>
+  </symbol>
 </svg>
   </div>
 
@@ -253,6 +277,10 @@
         <svg class="icon"><use href="#i-paw"/></svg>
       </div>
       <h2 class="welcome-name">Kiki</h2>
+      <!-- Claude Orange 像素橘色小方块彩蛋：点击提示 "Claude Orange ✨" -->
+      <button class="claude-orange-egg" id="claudeOrangeEgg" aria-label="Claude Orange 彩蛋">
+        <svg viewBox="0 0 16 16" width="22" height="22"><use href="#i-claude-orange"/></svg>
+      </button>
     </div>
 
     <div class="messages" id="messages"></div>
@@ -266,6 +294,16 @@
 
   <!-- 输入区 -->
   <footer class="input-area" style="position: relative;">
+    <!-- 引用回复预览条（点气泡菜单【引用】后出现） -->
+    <div class="quote-bar" id="quoteBar" hidden>
+      <div class="quote-bar-bar"></div>
+      <div class="quote-bar-body">
+        <div class="quote-bar-from" id="quoteFrom">引用</div>
+        <div class="quote-bar-text" id="quoteText"></div>
+      </div>
+      <button class="quote-bar-x" id="quoteX" aria-label="取消引用">✕</button>
+    </div>
+
     <button class="send-btn" id="sendBtn" aria-label="发送">
       <svg class="icon"><use href="#i-send"/></svg>
     </button>
@@ -295,10 +333,6 @@
         <button class="more-menu-item" data-action="voice">
           <svg class="icon"><use href="#i-mic"/></svg>
           <span>语音</span>
-        </button>
-        <button class="more-menu-item" data-action="sticker">
-          <svg class="icon"><use href="#i-smile"/></svg>
-          <span>表情包</span>
         </button>
         <button class="more-menu-item" data-action="camera">
           <svg class="icon"><use href="#i-camera"/></svg>
@@ -331,9 +365,13 @@
       </div>
     </div>
 
-    <!-- 表情选择面板（第二期：月月自己也能发表情包） -->
+    <!-- 表情选择面板（第二期：月月自己也能发表情包 · 分类 Tab + 按需渲染） -->
     <div class="stk-picker" id="stkPicker" hidden>
+      <div class="stk-picker-tabs" id="stkPickerTabs"></div>
       <div class="stk-picker-grid" id="stkPickerGrid"></div>
+      <div class="stk-picker-pager" id="stkPickerPager" hidden>
+        <button class="stk-pager-btn" id="stkPickerMore">展开更多 ▾</button>
+      </div>
     </div>
 
     <input type="file" id="imageInput" accept="image/*" hidden>
@@ -555,6 +593,11 @@
           <span class="mp-menu-label">调试后台</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <button class="mp-menu-item" data-mp="summary">
+          <span class="mp-menu-emoji">🧠</span>
+          <span class="mp-menu-label">长线记忆（滚动总结）</span>
+          <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
+        </button>
         <div class="mp-version" id="mpVersion"></div>
       </div>
 
@@ -657,6 +700,13 @@
             <textarea id="aiPresetContent" class="field-input field-textarea" rows="6" placeholder="小手机专属常驻微调设定…（留空=关闭）"></textarea>
             <span class="field-hint">绝对第一层 → 你写在这里的微调 → 默认人设 → 破限 → 酒馆预设</span>
           </label>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveAi">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存 AI 设定
+            </button>
+            <span class="mp-save-hint">保存即写入 localStorage，下次 API 调用立即生效</span>
+          </div>
         </div>
       </div>
 
@@ -699,7 +749,14 @@
             <span class="field-label">拍一拍后缀（你拍 TA 时显示）</span>
             <input type="text" id="userPatSuffix" class="field-input" placeholder="的小脑袋" maxlength="20">
           </label>
-          <span class="field-hint">改完自动保存，会写进 system prompt 给 AI 看</span>
+          <span class="field-hint">改完点保存，会写进 system prompt 给 AI 看</span>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveUser">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存用户设定
+            </button>
+            <span class="mp-save-hint">保存即写入 localStorage，下次 API 调用立即生效</span>
+          </div>
         </div>
       </div>
 
@@ -728,6 +785,13 @@
               <button class="btn-primary" id="stkAddSave">加入表情库</button>
             </div>
           </div>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveSticker">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存表情包配置
+            </button>
+            <span class="mp-save-hint">分类/启用改动点保存后立刻写入 localStorage 并参与下次 AI 调用</span>
+          </div>
         </div>
       </div>
 
@@ -736,6 +800,36 @@
         <div class="settings-group">
           <span class="field-hint">顺序应为：① 核心提示词/破限 → ② 世界书 → ③ 角色卡 → ④ 用户设定 → ⑤ 聊天历史 → ⑥ 当前消息</span>
           <pre id="debugPayload" class="debug-payload"></pre>
+        </div>
+      </div>
+
+      <!-- 长线记忆（滚动总结）：查看/微调当前宏观摘要 + 轮次计数器 -->
+      <div class="mp-page" id="mpPage-summary" hidden>
+        <div class="settings-group">
+          <div class="summary-progress" id="summaryProgress">
+            <div class="summary-progress-bar"><div class="summary-progress-fill" id="summaryFill"></div></div>
+            <div class="summary-progress-text" id="summaryProgressText">当前第 0 / 10 轮</div>
+          </div>
+          <span class="field-hint">每 10 轮触发一次总结，自动迭代「上版摘要 + 新 10 轮 → 新摘要」。冷启动期（&lt; 10 轮）原汁原味全量保留，不丢任何一条气泡。</span>
+          <label class="field">
+            <span class="field-label">当前宏观摘要（可手动微调保存）</span>
+            <textarea id="summaryContent" class="field-input field-textarea" rows="10" placeholder="（还没有摘要 —— 满 10 轮后系统自动生成）"></textarea>
+          </label>
+          <div class="button-row">
+            <button class="btn-secondary" id="summaryReset">清空摘要</button>
+            <button class="btn-primary" id="summarySave">保存修改</button>
+          </div>
+          <div class="mp-save-bar">
+            <button class="mp-save-btn" id="mpSaveSummary">
+              <svg class="icon-sm"><use href="#i-save"/></svg>
+              保存摘要
+            </button>
+            <span class="mp-save-hint">保存即写入 localStorage，下次 API 调用立即生效</span>
+          </div>
+          <div class="summary-memories">
+            <div class="settings-group-title">长期记忆（系统自动提取）</div>
+            <div id="summaryMemoriesList"></div>
+          </div>
         </div>
       </div>
     </div>
