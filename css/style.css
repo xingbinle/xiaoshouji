@@ -178,14 +178,14 @@ a {
 
 .brand-title {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: 0.5px;
 }
 
 .brand-sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   font-family: var(--font-ui);
   letter-spacing: 0.05em;
@@ -248,7 +248,7 @@ a {
   color: #F2EBE0;
   padding: 11px 20px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   z-index: 9999;
   pointer-events: none;
@@ -321,7 +321,7 @@ a {
   gap: 8px;
   width: 100%;
   padding: 13px 18px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   font-family: var(--font-ui);
   color: white;
@@ -350,7 +350,7 @@ a {
   100% { box-shadow: 0 0 0 14px rgba(111, 207, 151, 0), 0 4px 14px rgba(79, 180, 124, 0.4); }
 }
 .mp-save-hint {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-light);
   font-family: var(--font-ui);
   text-align: center;
@@ -359,7 +359,7 @@ a {
 
 .welcome-name {
   font-family: var(--font-display);
-  font-size: 38px;
+  font-size: 35px;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: 0.08em;
@@ -448,7 +448,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-serif);
   font-weight: 600;
   background: var(--sky-pale);
@@ -487,7 +487,7 @@ a {
   max-width: 78%;
   padding: 10px 14px;
   border-radius: var(--r-lg);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.65;
   word-wrap: break-word;
   position: relative;
@@ -531,7 +531,7 @@ a {
   padding: var(--gap-sm) var(--gap-md);
   border-radius: var(--r-sm);
   overflow: auto;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-mono);
   margin-top: var(--gap-sm);
   white-space: pre-wrap;
@@ -560,7 +560,7 @@ a {
   padding: 8px 12px;
   background: var(--sky-mist);
   border-bottom: 1px solid var(--line-soft);
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
   color: var(--ink-soft);
   letter-spacing: 0.05em;
@@ -591,7 +591,7 @@ a {
   color: var(--ink);
   padding: 5px 10px;
   border-radius: var(--r-xs);
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
   font-family: var(--font-ui);
   display: inline-flex;
@@ -738,7 +738,7 @@ a {
   border-radius: 50%;
   background: rgba(20,16,14,0.78);
   color: #F2EBE0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   display: flex; align-items: center; justify-content: center;
   border: none;
@@ -746,7 +746,7 @@ a {
   padding: 0;
 }
 .pending-img-hint {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-light);
   white-space: nowrap;
   font-family: var(--font-ui);
@@ -875,7 +875,7 @@ a {
   border: 0;
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .more-menu-item:hover {
@@ -897,7 +897,7 @@ a {
 }
 
 .more-menu-item .badge {
-  font-size: 11px;
+  font-size: 10px;
   padding: 1px 4px;
   background: var(--sky-light);
   color: var(--sky-deep);
@@ -912,7 +912,7 @@ a {
   border-radius: var(--r-lg);
   padding: 11px 14px;
   font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.5;
   color: var(--ink);
   resize: none;
@@ -992,7 +992,7 @@ a {
 .settings-header h2,
 .help-header h2 {
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink);
   display: flex;
@@ -1042,7 +1042,7 @@ a {
 
 .settings-group-title {
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--sky-deep);
   margin-bottom: var(--gap-md);
@@ -1067,7 +1067,7 @@ a {
 }
 
 .field-label {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-family: var(--font-ui);
   font-weight: 500;
@@ -1080,7 +1080,7 @@ a {
   border-radius: var(--r-md);
   padding: 11px 14px;
   font-family: var(--font-serif);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink);
   outline: none;
   transition: border-color 0.2s var(--ease-out), background 0.2s var(--ease-out);
@@ -1099,12 +1099,12 @@ a {
   resize: vertical;
   min-height: 90px;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .field-hint {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   font-family: var(--font-ui);
   line-height: 1.5;
@@ -1205,7 +1205,7 @@ a {
   min-width: 100px;
   border-radius: var(--r-md);
   padding: 11px 16px;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   cursor: pointer;
   transition: all 0.2s var(--ease-out);
@@ -1321,15 +1321,18 @@ a {
 /* 全局：HTML hidden 属性必须能压过任何 display:flex/grid（CSS 选择器优先级陷阱） */
 [hidden] { display: none !important; }
 
-/* ponytail: iOS Safari 拒绝在 display:none 的 file input 上响应 .click()，
-   改用屏幕外定位让元素"可见但不可见"，.click() 能正常触发文件选择器 */
+/* ponytail: iOS Safari 不收 .click() 如果 element 在 viewport 外（left:-9999px）。
+   改成 fixed top:0 left:0 落在屏幕左上角 1×1 像素 — 仍在 viewport 内、opacity:0 不可见，
+   .click() 能正常开文件选择器 */
 .offscreen-file {
-  position: absolute;
-  left: -9999px;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
+  z-index: -1;
 }
 
 /* 引用回复预览条（输入框上方 · 紧凑贴边 · 明确"输入区附属"） */
@@ -1355,7 +1358,7 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-soft);
   line-height: 1.2;
 }
@@ -1377,7 +1380,7 @@ a {
   border-radius: 50%;
   background: transparent;
   color: var(--ink-light);
-  font-size: 14px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1421,13 +1424,13 @@ a {
   gap: 1px;
 }
 .msg-quote-card-from {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--sky-deep);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 .msg-quote-card-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   opacity: 0.85;
   line-height: 1.35;
@@ -1497,7 +1500,7 @@ a {
   box-shadow: 0 0 8px rgba(125, 176, 224, 0.4);
 }
 .summary-progress-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-family: var(--font-ui);
   font-weight: 600;
@@ -1515,7 +1518,7 @@ a {
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   background: var(--sky-pale);
   border: 1px solid var(--line-soft);
@@ -1547,7 +1550,7 @@ a {
   background: white;
   border: 1px solid var(--line);
   color: var(--sky-deep);
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   cursor: pointer;
   display: flex;
@@ -1574,7 +1577,7 @@ a {
   padding: 24px 12px;
 }
 .monster-hint {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-family: var(--font-ui);
 }
@@ -1630,7 +1633,7 @@ a {
   animation: monster-wiggle 0.6s ease-in-out both;
 }
 .monster-tip {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-light);
   font-family: var(--font-ui);
   letter-spacing: 0.05em;
@@ -1678,7 +1681,7 @@ a {
 .image-placeholder,
 .sticker-placeholder {
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   padding: 8px 12px;
   background: var(--paper-2);
@@ -1699,7 +1702,7 @@ a {
 .edited-mark {
   display: inline-block;
   margin-left: 6px;
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
   color: var(--ink-light);
   letter-spacing: 0.05em;
@@ -1734,7 +1737,7 @@ a {
 
 .help-body {
   padding: var(--gap-lg);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.7;
   color: var(--ink-soft);
   font-family: var(--font-serif);
@@ -1755,7 +1758,7 @@ a {
 
 .help-body code {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
   background: var(--sky-light);
   padding: 2px 6px;
   border-radius: var(--r-xs);
@@ -1793,11 +1796,11 @@ a {
   }
 
   .brand-title {
-    font-size: 23px;
+    font-size: 22px;
   }
 
   .brand-sub {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .icon-btn {
@@ -1816,12 +1819,12 @@ a {
   .avatar {
     width: 28px;
     height: 28px;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .bubble {
     max-width: 82%;
-    font-size: 18px;
+    font-size: 17px;
     padding: 10px 13px;
   }
 
@@ -1839,15 +1842,15 @@ a {
 
   .input-field {
     padding: 10px 12px;
-    font-size: 18px; /* 防止 iOS 缩放 */
+    font-size: 17px; /* 防止 iOS 缩放 */
   }
 
   .welcome-title {
-    font-size: 38px;
+    font-size: 35px;
   }
 
   .welcome-text {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   /* 设置面板在移动端铺满 */
@@ -1862,7 +1865,7 @@ a {
 
   .settings-header h2,
   .help-header h2 {
-    font-size: 23px;
+    font-size: 22px;
   }
 
   .settings-body,
@@ -1886,7 +1889,7 @@ a {
   }
 
   .settings-group-title {
-    font-size: 18px;
+    font-size: 17px;
   }
 }
 
@@ -1894,11 +1897,11 @@ a {
 @media (max-width: 375px) {
   .bubble {
     max-width: 86%;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .brand-title {
-    font-size: 23px;
+    font-size: 22px;
   }
 }
 
@@ -1964,7 +1967,7 @@ a {
   padding: 6px 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-soft);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .draft-text {
@@ -2029,13 +2032,13 @@ a {
 .voice-bar:nth-child(5) { height: 6px; }
 
 .voice-duration {
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 500;
 }
 
 .voice-label {
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
   opacity: 0.6;
   margin-left: auto;
@@ -2045,7 +2048,7 @@ a {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--line-soft);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   white-space: pre-wrap;
   max-width: 240px;
@@ -2065,7 +2068,7 @@ a {
   max-width: 320px;
 }
 .inline-editor .field-textarea {
-  font-size: 14px;
+  font-size: 13px;
   min-height: 60px;
 }
 .inline-editor-btns {
@@ -2077,7 +2080,7 @@ a {
 .inline-editor-btns button {
   flex: 0 0 auto;
   padding: 6px 10px;
-  font-size: 14px;
+  font-size: 13px;
   min-width: auto;
 }
 
@@ -2095,7 +2098,7 @@ a {
    撤回消息占位
    ============================================ */
 .msg-recall {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   font-family: var(--font-ui);
   text-align: center;
@@ -2184,7 +2187,7 @@ a {
 
 .voice-header h3 {
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink);
 }
@@ -2233,7 +2236,7 @@ a {
 
 .multi-delete-tip {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 500;
   color: white;
@@ -2244,7 +2247,7 @@ a {
   border: none;
   border-radius: var(--r-md);
   padding: 8px 16px;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
@@ -2303,7 +2306,7 @@ a {
   background: var(--sky-deep);
   color: white;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2343,7 +2346,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--gold);
   font-family: var(--font-ui);
   letter-spacing: 0.05em;
@@ -2352,7 +2355,7 @@ a {
 
 .rp-amount {
   font-family: var(--font-display);
-  font-size: 38px;
+  font-size: 35px;
   font-weight: 700;
   color: var(--gold);
   text-align: center;
@@ -2361,14 +2364,14 @@ a {
 }
 
 .rp-symbol {
-  font-size: 23px;
+  font-size: 22px;
   opacity: 0.7;
   margin-right: 2px;
 }
 
 .rp-note {
   font-family: var(--font-serif);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink);
   text-align: center;
   font-style: italic;
@@ -2385,7 +2388,7 @@ a {
 .rp-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   font-family: var(--font-ui);
 }
@@ -2402,7 +2405,7 @@ a {
   color: var(--gold);
   padding: 2px 8px;
   border-radius: var(--r-xs);
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
   font-weight: 500;
 }
@@ -2420,7 +2423,7 @@ a {
   color: var(--ink-light);
   padding: 2px 8px;
   border-radius: var(--r-xs);
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
 }
 
@@ -2430,7 +2433,7 @@ a {
   width: 100%;
   margin-top: 14px;
   padding: 10px 0;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 600;
   border-radius: var(--r-md);
@@ -2520,7 +2523,7 @@ a {
 
 .transfer-header h3 {
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink);
   display: flex;
@@ -2542,7 +2545,7 @@ a {
 }
 
 .transfer-field-label {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-family: var(--font-ui);
   font-weight: 500;
@@ -2554,7 +2557,7 @@ a {
   border-radius: var(--r-md);
   padding: 11px 14px;
   font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: 17px;
   color: var(--ink);
   outline: none;
   transition: border-color 0.2s var(--ease-out);
@@ -2566,7 +2569,7 @@ a {
 }
 
 .transfer-balance {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-family: var(--font-ui);
   text-align: right;
@@ -2577,7 +2580,7 @@ a {
 }
 
 .transfer-error {
-  font-size: 14px;
+  font-size: 13px;
   color: #B86B6B;
   font-family: var(--font-ui);
   min-height: 16px;
@@ -2602,7 +2605,7 @@ a {
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--r-pill);
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 600;
   color: var(--gold);
@@ -2618,7 +2621,7 @@ a {
 }
 
 .wallet-icon {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .wallet-balance {
@@ -2668,7 +2671,7 @@ a {
   gap: 2px;
   padding: 8px 10px;
   border-radius: var(--r-md);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--sky-deep);
   background: transparent;
   border: 1px solid var(--line);
@@ -2689,7 +2692,7 @@ a {
   flex: 1;
   min-width: 0;
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink);
 }
@@ -2712,7 +2715,7 @@ a {
   background: var(--paper-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  font-size: 18px;
+  font-size: 17px;
   color: var(--ink);
   cursor: pointer;
   transition: all 0.15s var(--ease-out);
@@ -2728,7 +2731,7 @@ a {
 }
 
 .mp-menu-emoji {
-  font-size: 23px;
+  font-size: 22px;
 }
 
 .mp-menu-label {
@@ -2743,7 +2746,7 @@ a {
 /* 菜单页版本号 */
 .mp-version {
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   padding: 18px 0 6px;
   letter-spacing: 0.05em;
@@ -2770,7 +2773,7 @@ a {
 .pg-name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink);
   overflow: hidden;
@@ -2786,7 +2789,7 @@ a {
 
 .pg-badge {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--sky-deep);
   background: var(--sky-pale);
   border: 1px solid var(--sky);
@@ -2814,7 +2817,7 @@ a {
 .regex-target {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
   padding: 8px 10px;
 }
 
@@ -2840,7 +2843,7 @@ a {
 .preset-item-name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2859,7 +2862,7 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary, #8b8b9e);
   cursor: pointer;
 }
@@ -2871,7 +2874,7 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 10px;
   font-family: monospace;
   color: var(--ink);
 }
@@ -2885,7 +2888,7 @@ a {
   padding: 12px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
@@ -2895,7 +2898,7 @@ a {
 }
 
 .role-empty {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-light);
   padding: 6px 2px;
 }
@@ -2917,7 +2920,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
+  font-size: 28px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -2965,7 +2968,7 @@ a {
   box-shadow: 0 0 0 2px var(--gold), 0 0 12px rgba(212, 169, 92, 0.55);
 }
 .msg-inner {
-  font-size: 14px;
+  font-size: 13px;
   font-style: italic;
   color: var(--ink-soft);
   background: var(--paper-2);
@@ -3014,7 +3017,7 @@ a {
 .stk-tab {
   flex-shrink: 0;
   padding: 5px 12px;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   background: var(--paper-2);
   color: var(--ink-soft);
@@ -3046,7 +3049,7 @@ a {
   flex-shrink: 0;
 }
 .stk-pager-btn {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--sky-deep);
   background: var(--sky-pale);
   border: 1px solid var(--sky-light);
@@ -3089,7 +3092,7 @@ a {
 .stk-cat-head:hover { color: var(--sky-deep); }
 .stk-cat-head .stk-fold {
   display: inline-block;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-light);
   transition: transform 0.15s var(--ease-out);
   width: 12px;
@@ -3121,7 +3124,7 @@ a {
   margin: 0 auto;
 }
 .stk-name {
-  font-size: 14px;
+  font-size: 13px;
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3138,7 +3141,7 @@ a {
   border: none;
   color: var(--ink-light);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   padding: 2px 4px;
 }
 .stk-add-row {
@@ -3174,13 +3177,13 @@ a {
   gap: 4px;
 }
 .stk-add-label {
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-ui);
   color: var(--ink-light);
   letter-spacing: 0.04em;
 }
 .stk-add-mid .field-input {
-  font-size: 14px;
+  font-size: 13px;
   padding: 6px 8px;
 }
 /* 右侧删除按钮（独立一列，不再浮在图上） */
@@ -3191,7 +3194,7 @@ a {
   border-radius: var(--r-sm);
   background: var(--paper-2);
   color: var(--ink-light);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   border: 1px solid var(--line);
   cursor: pointer;
@@ -3245,7 +3248,7 @@ a {
   margin-top: 16px;
 }
 .iphone-lock-time {
-  font-size: 50px;
+  font-size: 45px;
   font-weight: 200;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -3254,7 +3257,7 @@ a {
 }
 .iphone-lock-date {
   margin-top: 4px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: rgba(236, 230, 223, 0.75);
   letter-spacing: 0.04em;
@@ -3287,13 +3290,13 @@ a {
   height: 38px;
 }
 .iphone-lock-name {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #ECE6DF;
 }
 .iphone-lock-account {
-  font-size: 11px;
+  font-size: 10px;
   color: rgba(168, 200, 232, 0.85);
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   letter-spacing: 0.05em;
@@ -3304,7 +3307,7 @@ a {
   display: none;
 }
 .iphone-lock-msg {
-  font-size: 14px;
+  font-size: 13px;
   color: rgba(236, 230, 223, 0.85);
   margin-top: 4px;
   margin-bottom: 12px;
@@ -3371,7 +3374,7 @@ a {
   border: none;
   background: rgba(236, 230, 223, 0.12);
   color: #ECE6DF;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 300;
   cursor: pointer;
   display: flex;
@@ -3402,12 +3405,12 @@ a {
 .pad-key.pad-back:hover { background: rgba(236, 230, 223, 0.15); }
 .pad-key.pad-back:active { background: rgba(236, 230, 223, 0.25); }
 .pad-num {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 300;
   line-height: 1;
 }
 .pad-sub {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
   color: rgba(236, 230, 223, 0.6);
@@ -3433,7 +3436,7 @@ a {
   background: transparent;
   border: none;
   color: #A8C8E8;
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-ui);
   cursor: pointer;
   padding: 8px 14px;
@@ -3464,19 +3467,19 @@ a {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .pin-change-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: #ECE6DF;
   margin-bottom: 6px;
 }
 .pin-change-desc {
-  font-size: 14px;
+  font-size: 13px;
   color: rgba(236, 230, 223, 0.7);
   margin-bottom: 16px;
   line-height: 1.5;
 }
 .pin-change-msg {
-  font-size: 14px;
+  font-size: 13px;
   color: #F09090;
   margin-top: 8px;
   min-height: 18px;

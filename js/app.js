@@ -2593,28 +2593,48 @@ function handleImageUpload(file) {
   reader.readAsDataURL(file);
 }
 
-// ponytail: 每次选图都克隆一个新 input 节点（继承 class 和 accept），挂好 change 事件，
-//   点击后立即销毁原节点。这样 iOS Safari 在第二次/第三次选图时也能干净触发。
+// ponytail: ✅ 优先保护 Safari — 走标准 change event，不加任何额外 listener。
+//   iOS 上的 Chrome/Edge/Firefox 都是 WKWebView variant，关闭 file picker 时不一定 fire change
+//   但会让主窗口重新得焦 → 用 userAgent 严格识别后才挂 focus 兜底，Safari 永远不碰这条路径。
 function triggerImageInput() {
   const orig = $('imageInput');
   if (!orig) return;
-  const fresh = orig.cloneNode(false);
-  fresh.id = 'imageInput';
-  fresh.className = 'offscreen-file';
-  fresh.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) handleImageUpload(file);
-    e.target.value = '';
-    // 用完即销毁，下次再 clone 新的
-    if (fresh.parentNode) fresh.parentNode.removeChild(fresh);
-    if (!document.getElementById('imageInput')) {
-      orig.style.display = '';
-      document.body.appendChild(orig);
-    }
-  });
-  orig.style.display = 'none';
-  document.body.appendChild(fresh);
-  fresh.click();
+  orig.value = '';
+
+  // Path 1: 标准 change event — Safari/桌面 Chrome/桌面 Firefox/所有主流都覆盖
+  orig.addEventListener(
+    'change',
+    () => {
+      const f = orig.files && orig.files[0];
+      if (!f) return;
+      orig.value = '';
+      handleImageUpload(f);
+    },
+    { once: true }
+  );
+
+  // Path 2: focus 兜底 — 只挂在 iOS 上非 Safari 的 WKWebView variant 上
+  //   iOS 上的所有浏览器都是 WKWebView，但 Safari 用自己的 sheet modal，关闭时不 blur 主窗口
+  //   也正常 fire change。iOS Chrome/Edge/Firefox/Opera (UA 里有 CriOS|EdgiOS|FxiOS|OPiOS)
+  //   关闭 picker 时不一定 fire change 且会让主窗口重新得焦 → 这两类才需要兜底。
+  //   Safari (包括 macOS Safari) 永远不挂这条，0 风险干扰。
+  const ua = navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(ua);
+  const isIosVariant = isIos && /CriOS|EdgiOS|FxiOS|OPiOS/.test(ua);
+  if (isIosVariant) {
+    window.addEventListener(
+      'focus',
+      () => setTimeout(() => {
+        const f = orig.files && orig.files[0];
+        if (!f) return;
+        orig.value = '';
+        handleImageUpload(f);
+      }, 200),
+      { once: true }
+    );
+  }
+
+  orig.click();
 }
 
 // ============ 导出/导入/清空 ============
