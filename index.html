@@ -629,16 +629,16 @@
         <div class="mp-version" id="mpVersion"></div>
       </div>
 
-      <!-- 账号与安全：密码管理 + 用户名编辑入口 -->
+      <!-- 账号与安全：账户信息 + 改密码 + 主动锁定 -->
       <div class="mp-page" id="mpPage-security" hidden>
-        <!-- 密码状态 -->
+        <!-- 账户 / 密码状态 -->
         <div class="settings-group">
           <div class="settings-group-title">
             <svg class="icon"><use href="#i-lock-shield"/></svg>
-            主密码
+            账户与密码
           </div>
-          <div class="field-hint" id="secPwStatus" style="font-size:13px; font-weight:600; padding:8px 12px; background:var(--paper-2); border-radius:var(--r-sm); border:1px solid var(--line-soft);"></div>
-          <div class="button-row">
+          <div id="secPwStatus" style="font-size:13px; font-weight:600; padding:10px 12px; background:var(--paper-2); border-radius:var(--r-sm); border:1px solid var(--line-soft); line-height:1.7;"></div>
+          <div class="button-row" style="margin-top:10px;">
             <button class="btn-primary" id="secChangePwBtn">
               <svg class="icon-sm"><use href="#i-lock-shield"/></svg>
               修改密码
@@ -652,45 +652,19 @@
               立即锁定
             </button>
           </div>
-
-          <!-- 修改密码内嵌表单（默认隐藏） -->
-          <div id="secChangePwPanel" hidden style="margin-top:16px; padding:14px; background:var(--paper-2); border:1px solid var(--sky); border-radius:var(--r-md);">
-            <div class="field-hint" style="color:var(--ink-soft); margin-bottom:10px;">修改密码：先输旧密码确认你是主人，再设新密码</div>
-            <label class="field">
-              <span class="field-label">旧密码</span>
-              <input type="password" id="secPwOld" class="field-input" placeholder="当前主密码" autocomplete="current-password">
-            </label>
-            <label class="field">
-              <span class="field-label">新密码</span>
-              <input type="password" id="secPwNew" class="field-input" placeholder="至少 6 位，建议字母+数字" autocomplete="new-password">
-              <div class="lock-strength" style="margin-top:6px;">
-                <div class="lock-strength-bar"><div class="lock-strength-fill" id="secPwStrengthFill"></div></div>
-                <span class="lock-strength-text" id="secPwStrengthText"></span>
-              </div>
-            </label>
-            <label class="field">
-              <span class="field-label">再输一次新密码</span>
-              <input type="password" id="secPwNew2" class="field-input" placeholder="确认新密码" autocomplete="new-password">
-            </label>
-            <div id="secPwSaveMsg" class="field-hint" style="font-weight:600; min-height:18px;"></div>
-            <div class="button-row">
-              <button class="btn-secondary" id="secPwCancelBtn">取消</button>
-              <button class="btn-primary" id="secPwSaveBtn">🔐 保存新密码</button>
-            </div>
-          </div>
         </div>
 
         <!-- 用户名 / 头像 / 简介 -->
         <div class="settings-group">
           <div class="settings-group-title">
             <svg class="icon"><use href="#i-user"/></svg>
-            我的账号信息
+            我的资料（名字 · 头像 · 简介）
           </div>
           <div class="field-hint">设置后，AI 会用这个名字称呼你（"用户"只是占位）</div>
           <div id="secUserPreview" style="padding:10px 12px; background:var(--paper-2); border:1px solid var(--line-soft); border-radius:var(--r-md); margin-bottom:10px;"></div>
           <button class="btn-primary" id="secGoUserBtn">
             <svg class="icon-sm"><use href="#i-edit"/></svg>
-            修改我的资料（姓名 · 头像 · 简介 · 拍一拍后缀）
+            修改我的资料
           </button>
         </div>
       </div>
@@ -974,44 +948,80 @@
   </div>
 
   <!-- 帮助面板 -->
-  <!-- 开机密码弹窗（v0.3 端到端加密 · 全屏锁定直到解锁） -->
-  <div class="lock-panel" id="lockPanel" hidden>
-    <div class="lock-content">
-      <div class="lock-icon" id="lockIcon">
-        <svg class="icon-lg"><use href="#i-lock-shield"/></svg>
-      </div>
-      <h2 class="lock-title" id="lockTitle">设置小手机密码</h2>
-      <p class="lock-desc" id="lockDesc">密码会保护你的聊天记录、人物设定、记忆总结。密码不会上传，忘了就只能重置（清空云端数据）。</p>
-
-      <!-- 设置密码状态 -->
-      <div class="lock-form" id="lockSetupForm" hidden>
-        <label class="field">
-          <span class="field-label">新密码</span>
-          <input type="password" id="lockPw" class="field-input" placeholder="至少 6 位，建议字母+数字" autocomplete="new-password">
-          <div class="lock-strength" id="lockStrength">
-            <div class="lock-strength-bar"><div class="lock-strength-fill" id="lockStrengthFill"></div></div>
-            <span class="lock-strength-text" id="lockStrengthText"></span>
-          </div>
-        </label>
-        <label class="field">
-          <span class="field-label">再输一次</span>
-          <input type="password" id="lockPw2" class="field-input" placeholder="确认密码" autocomplete="new-password">
-        </label>
-        <button class="btn-primary lock-submit" id="lockSetupBtn">🔐 设置并解锁</button>
-        <p class="lock-tip">⚠️ 密码只存在你本地，<b>忘了克宝也救不回来</b>，建议现在截图保存到安全的地方</p>
+  <!-- iPhone 风格全屏锁屏（v0.4 · 全局拦截 · 6 位数字 PIN · 账户独立） -->
+  <div class="iphone-lock" id="iphoneLock" hidden aria-modal="true" role="dialog">
+    <div class="iphone-lock-bg">
+      <!-- 顶部：时间 + 日期（iPhone 锁屏同款） -->
+      <div class="iphone-lock-status">
+        <div class="iphone-lock-time" id="iphoneTime">--:--</div>
+        <div class="iphone-lock-date" id="iphoneDate">--月--日</div>
       </div>
 
-      <!-- 解锁状态 -->
-      <div class="lock-form" id="lockUnlockForm" hidden>
-        <label class="field">
-          <span class="field-label">主密码</span>
-          <input type="password" id="lockUnlockPw" class="field-input" placeholder="输入你的小手机密码" autocomplete="current-password">
-        </label>
-        <button class="btn-primary lock-submit" id="lockUnlockBtn">🔓 解锁</button>
-        <div class="lock-extra">
-          <button class="lock-link" id="lockForgotBtn">忘了密码 → 重置</button>
+      <!-- 中部：图标 + 名称 + 账户 + 提示 + 6 个圆点 -->
+      <div class="iphone-lock-mid">
+        <div class="iphone-lock-icon" aria-hidden="true">
+          <svg class="icon-xl" viewBox="0 0 24 24"><use href="#i-phone"/></svg>
         </div>
-        <p class="lock-tip lock-attempts" id="lockAttempts"></p>
+        <div class="iphone-lock-name">小手机</div>
+        <div class="iphone-lock-account" id="iphoneAccount"></div>
+        <div class="iphone-lock-msg" id="iphoneMsg">输入密码解锁</div>
+        <div class="iphone-lock-dots" id="iphoneDots">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- 数字键盘（3×4 · iPhone 同款） -->
+      <div class="iphone-lock-pad" id="iphonePad">
+        <button class="pad-key" data-num="1" type="button"><span class="pad-num">1</span></button>
+        <button class="pad-key" data-num="2" type="button"><span class="pad-num">2</span><span class="pad-sub">ABC</span></button>
+        <button class="pad-key" data-num="3" type="button"><span class="pad-num">3</span><span class="pad-sub">DEF</span></button>
+        <button class="pad-key" data-num="4" type="button"><span class="pad-num">4</span><span class="pad-sub">GHI</span></button>
+        <button class="pad-key" data-num="5" type="button"><span class="pad-num">5</span><span class="pad-sub">JKL</span></button>
+        <button class="pad-key" data-num="6" type="button"><span class="pad-num">6</span><span class="pad-sub">MNO</span></button>
+        <button class="pad-key" data-num="7" type="button"><span class="pad-num">7</span><span class="pad-sub">PQRS</span></button>
+        <button class="pad-key" data-num="8" type="button"><span class="pad-num">8</span><span class="pad-sub">TUV</span></button>
+        <button class="pad-key" data-num="9" type="button"><span class="pad-num">9</span><span class="pad-sub">WXYZ</span></button>
+        <button class="pad-key pad-blank" type="button" disabled aria-hidden="true"></button>
+        <button class="pad-key" data-num="0" type="button"><span class="pad-num">0</span></button>
+        <button class="pad-key pad-back" data-num="del" type="button" aria-label="删除一位">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x"/></svg>
+        </button>
+      </div>
+
+      <!-- 底部：忘记密码（仅解锁态可见） -->
+      <div class="iphone-lock-foot">
+        <button class="iphone-lock-link" id="iphoneForgot" type="button" hidden>忘记密码？</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 改密码弹层（沿用锁屏风格 · 安全页里点"修改密码"触发） -->
+  <div class="pin-change-panel" id="pinChangePanel" hidden>
+    <div class="pin-change-box">
+      <div class="pin-change-title" id="pinChangeTitle">修改密码</div>
+      <div class="pin-change-desc" id="pinChangeDesc">先输当前 6 位密码</div>
+      <div class="iphone-lock-dots pin-change-dots" id="pinChangeDots">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="iphone-lock-pad pin-change-pad" id="pinChangePad">
+        <button class="pad-key" data-num="1" type="button"><span class="pad-num">1</span></button>
+        <button class="pad-key" data-num="2" type="button"><span class="pad-num">2</span><span class="pad-sub">ABC</span></button>
+        <button class="pad-key" data-num="3" type="button"><span class="pad-num">3</span><span class="pad-sub">DEF</span></button>
+        <button class="pad-key" data-num="4" type="button"><span class="pad-num">4</span><span class="pad-sub">GHI</span></button>
+        <button class="pad-key" data-num="5" type="button"><span class="pad-num">5</span><span class="pad-sub">JKL</span></button>
+        <button class="pad-key" data-num="6" type="button"><span class="pad-num">6</span><span class="pad-sub">MNO</span></button>
+        <button class="pad-key" data-num="7" type="button"><span class="pad-num">7</span><span class="pad-sub">PQRS</span></button>
+        <button class="pad-key" data-num="8" type="button"><span class="pad-num">8</span><span class="pad-sub">TUV</span></button>
+        <button class="pad-key" data-num="9" type="button"><span class="pad-num">9</span><span class="pad-sub">WXYZ</span></button>
+        <button class="pad-key pad-blank" type="button" disabled aria-hidden="true"></button>
+        <button class="pad-key" data-num="0" type="button"><span class="pad-num">0</span></button>
+        <button class="pad-key pad-back" data-num="del" type="button" aria-label="删除一位">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <div class="pin-change-msg" id="pinChangeMsg"></div>
+      <div class="pin-change-buttons">
+        <button class="btn-secondary" id="pinChangeCancel" type="button">取消</button>
       </div>
     </div>
   </div>

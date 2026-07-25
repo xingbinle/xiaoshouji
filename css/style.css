@@ -1318,6 +1318,9 @@ a {
   }
 }
 
+/* 全局：HTML hidden 属性必须能压过任何 display:flex/grid（CSS 选择器优先级陷阱） */
+[hidden] { display: none !important; }
+
 /* 引用回复预览条（输入框上方 · 紧凑贴边 · 明确"输入区附属"） */
 .quote-bar {
   width: 100%;
@@ -3155,4 +3158,288 @@ a {
   background: #B86B6B;
   color: white;
   border-color: #B86B6B;
+}
+
+/* ============================================
+   iPhone 风格全屏锁屏（v0.4 · 6 位 PIN · 账户独立）
+   ============================================ */
+.iphone-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;            /* 高于一切，比 settings-panel 的 999 还高 */
+  background:
+    radial-gradient(ellipse at top, rgba(125, 176, 224, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at bottom, rgba(255, 180, 140, 0.08) 0%, transparent 70%),
+    linear-gradient(180deg, #0F1418 0%, #1B2026 50%, #0F1418 100%);
+  color: #ECE6DF;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.iphone-lock-bg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: env(safe-area-inset-top, 24px) 20px env(safe-area-inset-bottom, 24px);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* 顶部：时间 + 日期（iPhone 锁屏同款大气字体） */
+.iphone-lock-status {
+  text-align: center;
+  margin-top: 16px;
+}
+.iphone-lock-time {
+  font-size: 64px;
+  font-weight: 200;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #ECE6DF;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.iphone-lock-date {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(236, 230, 223, 0.75);
+  letter-spacing: 0.04em;
+}
+
+/* 中部：图标 + 名字 + 账户 + 提示 + 6 圆点 */
+.iphone-lock-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0;
+}
+.iphone-lock-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(125, 176, 224, 0.25) 0%, rgba(168, 200, 232, 0.15) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #A8C8E8;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+}
+.iphone-lock-icon .icon-xl {
+  width: 38px;
+  height: 38px;
+}
+.iphone-lock-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #ECE6DF;
+}
+.iphone-lock-account {
+  font-size: 11px;
+  color: rgba(168, 200, 232, 0.85);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  min-height: 14px;
+}
+.iphone-lock-account:empty {
+  display: none;
+}
+.iphone-lock-msg {
+  font-size: 14px;
+  color: rgba(236, 230, 223, 0.85);
+  margin-top: 4px;
+  margin-bottom: 12px;
+  text-align: center;
+  min-height: 20px;
+  transition: color 0.2s var(--ease-out);
+}
+.iphone-lock-msg.is-error {
+  color: #F09090;
+  animation: iphoneMsgShake 0.4s var(--ease-out);
+}
+@keyframes iphoneMsgShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* 6 个圆点 */
+.iphone-lock-dots {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+  height: 16px;
+  align-items: center;
+}
+.iphone-lock-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(236, 230, 223, 0.4);
+  background: transparent;
+  transition: background 0.15s var(--ease-out), transform 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+.iphone-lock-dots span.is-filled {
+  background: #ECE6DF;
+  border-color: #ECE6DF;
+  transform: scale(1.05);
+}
+.iphone-lock-dots.is-error span {
+  border-color: #F09090;
+  background: transparent;
+  animation: iphoneDotShake 0.4s var(--ease-out);
+}
+@keyframes iphoneDotShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+/* 数字键盘 3×4 */
+.iphone-lock-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  margin: 12px 0;
+}
+.pad-key {
+  aspect-ratio: 1.4 / 1;
+  border-radius: 50%;
+  border: none;
+  background: rgba(236, 230, 223, 0.12);
+  color: #ECE6DF;
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  transition: background 0.12s var(--ease-out), transform 0.08s var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 56px;
+}
+.pad-key:hover:not(:disabled):not(.pad-blank) {
+  background: rgba(236, 230, 223, 0.22);
+}
+.pad-key:active:not(:disabled):not(.pad-blank) {
+  background: rgba(236, 230, 223, 0.32);
+  transform: scale(0.96);
+}
+.pad-key.pad-blank {
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+.pad-key.pad-back {
+  background: transparent;
+}
+.pad-key.pad-back:hover { background: rgba(236, 230, 223, 0.15); }
+.pad-key.pad-back:active { background: rgba(236, 230, 223, 0.25); }
+.pad-num {
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1;
+}
+.pad-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: rgba(236, 230, 223, 0.6);
+  margin-top: 2px;
+  line-height: 1;
+}
+.pad-key.pad-back .icon {
+  width: 22px;
+  height: 22px;
+  color: rgba(236, 230, 223, 0.85);
+}
+
+/* 底部忘记密码 */
+.iphone-lock-foot {
+  margin-top: 8px;
+  padding-bottom: 8px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.iphone-lock-link {
+  background: transparent;
+  border: none;
+  color: #A8C8E8;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: background 0.15s var(--ease-out);
+}
+.iphone-lock-link:hover { background: rgba(168, 200, 232, 0.12); }
+.iphone-lock-link:active { background: rgba(168, 200, 232, 0.22); }
+
+/* 改 PIN 弹层（沿用锁屏风格） */
+.pin-change-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(15, 20, 24, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.pin-change-box {
+  background: var(--paper-1, #1B2026);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid rgba(168, 200, 232, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.pin-change-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ECE6DF;
+  margin-bottom: 6px;
+}
+.pin-change-desc {
+  font-size: 12px;
+  color: rgba(236, 230, 223, 0.7);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.pin-change-msg {
+  font-size: 12px;
+  color: #F09090;
+  margin-top: 8px;
+  min-height: 18px;
+}
+.pin-change-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.pin-change-buttons button {
+  flex: 1;
+}
 }
