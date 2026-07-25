@@ -1,6 +1,6 @@
 {
-  "name": "Kiki",
-  "short_name": "Kiki",
+  "name": "Sol",
+  "short_name": "Sol",
   "description": "轻量级 AI 聊天 PWA，支持多模态与 HTML 预览",
   "start_url": "./index.html",
   "scope": "./",

@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#1B1614">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Kiki">
-  <title>Kiki</title>
+  <meta name="apple-mobile-web-app-title" content="Sol">
+  <title>Sol</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="assets/icon-192.svg">
   <link rel="apple-touch-icon" href="assets/icon-512.svg">
@@ -38,7 +38,7 @@
   <!-- 首屏加载指示器（JS未就绪时显示） -->
   <div id="appLoading">
     <div class="paw">🐾</div>
-    <div class="text">Kiki 加载中…</div>
+    <div class="text">Sol 加载中…</div>
   </div>
 
   <!-- SVG 图标 sprite（内联，确保 file:// 也能用） -->
@@ -264,7 +264,7 @@
         <svg class="icon"><use href="#i-phone"/></svg>
       </div>
       <div class="brand-text">
-        <h1 class="brand-title">Kiki</h1>
+        <h1 class="brand-title">Sol</h1>
         <span class="brand-sub" id="statusSub">未连接</span>
       </div>
     </div>
@@ -286,7 +286,7 @@
       <div class="welcome-paw">
         <svg class="icon"><use href="#i-paw"/></svg>
       </div>
-      <h2 class="welcome-name">Kiki</h2>
+      <h2 class="welcome-name">Sol</h2>
       <!-- Claude Orange 像素橘色小方块彩蛋：点击提示 "Claude Orange ✨" -->
       <button class="claude-orange-egg" id="claudeOrangeEgg" aria-label="Claude Orange 彩蛋">
         <svg viewBox="0 0 16 16" width="22" height="22"><use href="#i-claude-orange"/></svg>
@@ -518,7 +518,7 @@
           <label class="field">
             <span class="field-label">主题</span>
             <select id="themeSelect" class="field-input">
-              <option value="dark">暗色 · Kiki（默认）</option>
+              <option value="dark">暗色 · Sol（默认）</option>
               <option value="light">亮色 · 编辑感</option>
             </select>
             <span class="field-hint">切换后立即生效，保存到本地</span>
@@ -779,7 +779,7 @@
         <div class="settings-group">
           <span class="field-hint" style="display:block;margin-bottom:12px;padding:8px;background:var(--sky-pale);border-radius:8px;border:1px solid var(--sky-light);font-size:11px;">
             📋 <strong>保存后这两块发到 API 的顺序</strong>（从上到下，紧贴核心人设）：<br>
-            ① 硬编码 ABSOLUTE_CORE（Kiki 灵魂指令，永远置顶）<br>
+            ① 硬编码 ABSOLUTE_CORE（Sol 灵魂指令，永远置顶）<br>
             ② <strong>预设内容</strong>（下面"预设内容"框）<br>
             ③ 核心人设（DEFAULT_SYSTEM_PROMPT，含活人感/暧昧未定关系基调）<br>
             ④ 破限板块<br>
@@ -791,12 +791,12 @@
           </span>
           <label class="field">
             <span class="field-label">AI 名字</span>
-            <input type="text" id="aiNameRole" class="field-input" placeholder="小克宝宝">
+            <input type="text" id="aiNameRole" class="field-input" placeholder="Sol">
           </label>
           <label class="field">
             <span class="field-label">角色设定（人设补充）→ 第 ⑦ 层</span>
             <textarea id="aiPersona" class="field-input field-textarea" rows="8" placeholder="补充 TA 的性格、口癖、和月月的关系设定…"></textarea>
-            <span class="field-hint">追加在<strong>第 ⑦ 层【小克宝宝 的人设定义】</strong>槽位（位于世界书之后、用户设定之前）。留空就不发这段。</span>
+            <span class="field-hint">追加在<strong>第 ⑦ 层【Sol 的人设定义】</strong>槽位（位于世界书之后、用户设定之前）。留空就不发这段。</span>
           </label>
           <label class="field">
             <span class="field-label">拍一拍后缀（TA 拍你时显示）</span>
