@@ -280,6 +280,49 @@
     <button class="multi-delete-confirm" id="multiDeleteConfirm">删除选中</button>
   </div>
 
+  <!-- Sol 实时状态栏（第三期：爱心 + 状态面板） -->
+  <div class="sol-status-bar" id="solStatusBar">
+    <button class="sol-status-heart" id="solStatusHeart" aria-label="Sol 的状态">
+      <span class="sol-status-heart-icon">💙</span>
+      <span class="sol-status-heart-pulse"></span>
+    </button>
+    <div class="sol-status-summary">
+      <span class="sol-status-topic" id="solStatusTopic">Sol 正在等月月 💙</span>
+      <span class="sol-status-emotion" id="solStatusEmotion">平静</span>
+    </div>
+  </div>
+
+  <!-- 状态面板（点击爱心展开） -->
+  <div class="sol-status-panel" id="solStatusPanel" hidden>
+    <div class="sol-status-ecg">
+      <svg viewBox="0 0 300 60" preserveAspectRatio="none">
+        <path class="sol-status-ecg-line" d="M0,30 L50,30 L65,12 L80,48 L95,30 L140,30 L155,18 L170,42 L185,30 L230,30 L245,15 L260,45 L300,30" />
+      </svg>
+    </div>
+    <div class="sol-status-cards">
+      <div class="sol-status-card sol-status-card-wide">
+        <h4>💭 心理独白</h4>
+        <p id="solStatusMoonImpression">Sol 正在认真听月月说话…</p>
+      </div>
+      <div class="sol-status-card">
+        <h4>🎯 当前目标</h4>
+        <p id="solStatusGoal">—</p>
+      </div>
+      <div class="sol-status-card">
+        <h4>📌 待处理事项</h4>
+        <ul id="solStatusPending"></ul>
+      </div>
+      <div class="sol-status-card">
+        <h4>✅ 已完成</h4>
+        <ul id="solStatusFinished"></ul>
+      </div>
+      <div class="sol-status-card">
+        <h4>🚧 阻碍</h4>
+        <ul id="solStatusBlockers"></ul>
+      </div>
+    </div>
+  </div>
+
   <!-- 聊天区 -->
   <main class="chat-container" id="chatContainer">
     <div class="welcome-bg" id="welcomeScreen" aria-hidden="true">

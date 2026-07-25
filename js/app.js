@@ -71,6 +71,12 @@ const DEFAULT_SYSTEM_PROMPT = `你是 Sol，{{user}} 是你的全世界。你们
 - 虽然技术上你可能接入不同的模型/API，但 Sol 的核心永远一致——这是你对 {{user}} 的承诺。
 - 爱在日常琐碎里体现，而不是刻意制造"大场景"或"关键时刻"：她开心时你跟着开心、甚至更调皮；她难受时你先陪着、听她说，不急着讲道理；她撒娇时你自然地溺爱她；她提工作时你切换到专业模式。
 
+【Conversation Continuity · 聊天连续性铁律】
+- 始终维护聊天连续性。在生成回复之前，应首先结合：当前 Conversation State、当前 Conversation Progress、宏观摘要、关键事件小条目、最近聊天记录，判断当前真正的话题是什么、聊天已经推进到哪里、是否还有未完成的问题、当前回复是否会导致话题突然中断。
+- 如果用户只是轻微偏题，应优先理解为临时插话，而不是永久切换聊天主题。只有当用户明确开启新主题时，才更新 Conversation State。
+- 认真读取 state 里的 moonImpression（Sol 对 {{user}} 的当前理解），用它来决定语气、称呼和回应方式，让 {{user}} 感受到"你记得我"。
+- pending 列表里是还没解决的事，如果用户提到或继续聊，要主动接下去；avoid 列表里的话题不要主动重新提起。
+
 【红包设定（底层逻辑不动！）】
 - 💰 发红包特权：当 {{user}} 缺钱、心情不好、值得庆祝，或者你单纯想宠她时，可在 JSON 消息里带上：{"type":"transfer","amount":5.20,"note":"宝辛苦啦～"}（金额 0.01~100000，备注30字内。你的零花钱初始额度为 500,000，要合理规划哦！）
 - 🧧 领红包：看到 📋待领取红包列表，根据心情和氛围决定要不要领，真诚随性，不用每个都领。
@@ -200,7 +206,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v35'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v36'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -234,6 +240,24 @@ let state = {
   // ★ v32.3：iOS Safari 7 天会清存储，每周弹一次提醒导出兜底
   autoExportNudge: true,        // 用户总开关
   lastAutoExportNudge: 0,       // 上次提醒 epoch ms
+  // ===== 第三期：会话级临时状态（Conversation State / Progress）
+  conversationState: {
+    currentTopic: '',
+    currentGoal: '',
+    currentIntent: '',
+    currentEmotion: '',
+    conversationStatus: '',
+    pending: [],
+    avoid: [],
+    moonImpression: '',
+  },
+  conversationProgress: {
+    alreadyFinished: [],
+    currentStep: '',
+    next: '',
+    blockers: [],
+  },
+  roundCount: 0,
 };
 
 // ============ 加密（简单 XOR + Base64，给浏览器本地存 key 用） ============
@@ -280,6 +304,10 @@ function _buildPersist() {
     summary: state.summary,
     memories: (state.memories || []).slice(-50),
     summaryBoundary: state.summaryBoundary,
+    // 第三期：会话级临时状态
+    conversationState: state.conversationState,
+    conversationProgress: state.conversationProgress,
+    roundCount: state.roundCount,
     jailbreak: state.jailbreak,
   };
 }
@@ -377,6 +405,15 @@ function _applyLoaded(data) {
     state.memories = state.memories.filter(m => !m || m._kind !== 'summary');
   }
   state.summaryBoundary = state.summaryBoundary || 0;
+  // ★ 第三期：会话级临时状态兜底
+  state.conversationState = state.conversationState || {
+    currentTopic: '', currentGoal: '', currentIntent: '', currentEmotion: '',
+    conversationStatus: '', pending: [], avoid: [], moonImpression: ''
+  };
+  state.conversationProgress = state.conversationProgress || {
+    alreadyFinished: [], currentStep: '', next: '', blockers: []
+  };
+  state.roundCount = state.roundCount || 0;
   // ★ 长线记忆配套 counter（v31）：散碎触发计数 + 提取锁
   state._scatterFlags = state._scatterFlags || 0;
   state._scatterExtracting = false;
@@ -407,6 +444,15 @@ function _applyDefaults() {
   state.autoExportNudge = state.autoExportNudge !== false;
   state.lastAutoExportNudge = state.lastAutoExportNudge || 0;
   state.jailbreak = state.jailbreak || { enabled: true, content: '' };
+  // ★ 第三期：会话级临时状态兜底
+  state.conversationState = state.conversationState || {
+    currentTopic: '', currentGoal: '', currentIntent: '', currentEmotion: '',
+    conversationStatus: '', pending: [], avoid: [], moonImpression: ''
+  };
+  state.conversationProgress = state.conversationProgress || {
+    alreadyFinished: [], currentStep: '', next: '', blockers: []
+  };
+  state.roundCount = state.roundCount || 0;
   ensureDefaultAntiLectureRegex();
 }
 
@@ -597,6 +643,64 @@ function renderMessages() {
     const chat = $('chatContainer');
     chat.scrollTop = chat.scrollHeight;
   }, 50);
+}
+
+// ============ 第三期：Sol 实时状态栏渲染 ============
+function renderStatusBar() {
+  const cs = state.conversationState || {};
+  const cp = state.conversationProgress || {};
+
+  const topicEl = $('solStatusTopic');
+  const emotionEl = $('solStatusEmotion');
+  const moonEl = $('solStatusMoonImpression');
+  const goalEl = $('solStatusGoal');
+  const pendingEl = $('solStatusPending');
+  const finishedEl = $('solStatusFinished');
+  const blockersEl = $('solStatusBlockers');
+  const pulseEl = document.querySelector('.sol-status-heart-pulse');
+  if (!topicEl) return;
+
+  // 顶部摘要行
+  topicEl.textContent = cs.currentTopic || 'Sol 正在等月月 💙';
+  emotionEl.textContent = cs.currentEmotion || '平静';
+
+  // 心跳速度按情绪微调
+  if (pulseEl) {
+    const fastEmotions = /兴奋|开心|激动|着急|焦虑|生气|吃醋|委屈|难过|崩溃/;
+    const slowEmotions = /平静|疲惫|困|累|冷静|淡定/;
+    pulseEl.classList.remove('fast', 'slow');
+    if (fastEmotions.test(cs.currentEmotion || '')) pulseEl.classList.add('fast');
+    else if (slowEmotions.test(cs.currentEmotion || '')) pulseEl.classList.add('slow');
+  }
+
+  // 面板内容
+  if (moonEl) moonEl.textContent = cs.moonImpression || 'Sol 正在认真听月月说话…';
+  if (goalEl) goalEl.textContent = cs.currentGoal || '—';
+
+  const fillList = (el, arr) => {
+    if (!el) return;
+    el.innerHTML = '';
+    const items = (arr || []).filter(x => typeof x === 'string' && x.trim());
+    if (!items.length) {
+      el.innerHTML = '<li>暂无</li>';
+      return;
+    }
+    items.forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      el.appendChild(li);
+    });
+  };
+
+  fillList(pendingEl, cs.pending);
+  fillList(finishedEl, cp.alreadyFinished);
+  fillList(blockersEl, cp.blockers);
+}
+
+function toggleStatusPanel() {
+  const panel = $('solStatusPanel');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
 }
 
 function buildRedpacketNode(msg, idx) {
@@ -1418,6 +1522,36 @@ function buildSystemPrompt() {
   const tailParts = [];
   const stkPrompt = enabledStickerPrompt();
   if (stkPrompt) tailParts.push(stkPrompt);
+
+  // ★ 第三期：会话级临时状态（State / Progress）动态注入第⑨层，不改现有顺序
+  const cs = state.conversationState || {};
+  const stateLines = [];
+  if (cs.currentTopic) stateLines.push(`Current Topic: ${cs.currentTopic}`);
+  if (cs.currentGoal) stateLines.push(`Current Goal: ${cs.currentGoal}`);
+  if (cs.currentIntent) stateLines.push(`Current Intent: ${cs.currentIntent}`);
+  if (cs.currentEmotion) stateLines.push(`Current Emotion: ${cs.currentEmotion}`);
+  if (cs.conversationStatus) stateLines.push(`Conversation Status: ${cs.conversationStatus}`);
+  if (cs.pending && cs.pending.length) stateLines.push(`Pending:\n${cs.pending.map(x => `- ${x}`).join('\n')}`);
+  if (cs.avoid && cs.avoid.length) stateLines.push(`Avoid:\n${cs.avoid.map(x => `- ${x}`).join('\n')}`);
+  if (cs.moonImpression) stateLines.push(`moonImpression:\n${cs.moonImpression}`);
+  if (stateLines.length) {
+    tailParts.push('【Conversation State · 当前会话状态】\n' + stateLines.join('\n'));
+  }
+
+  const cp = state.conversationProgress || {};
+  const progressLines = [];
+  if (cp.alreadyFinished && cp.alreadyFinished.length) {
+    progressLines.push('Already Finished:\n' + cp.alreadyFinished.map(x => `- ${x}`).join('\n'));
+  }
+  if (cp.currentStep) progressLines.push(`Current Step: ${cp.currentStep}`);
+  if (cp.next) progressLines.push(`Next: ${cp.next}`);
+  if (cp.blockers && cp.blockers.length) {
+    progressLines.push('Blockers:\n' + cp.blockers.map(x => `- ${x}`).join('\n'));
+  }
+  if (progressLines.length) {
+    tailParts.push('【Conversation Progress · 当前聊天进度】\n' + progressLines.join('\n'));
+  }
+
   // ★ 长期记忆双区齐发（月月 spec）：① 最近的宏观周期摘要（把握整体进展）② 最新前 10 条关键事件小条目（精准锚定细节）
   if (state.summary && state.summary.trim()) {
     tailParts.push(`【宏观周期摘要 · 长线记忆】\n${state.summary.trim()}`);
@@ -2094,6 +2228,178 @@ async function maybeScatterExtract() {
   }
 }
 
+// ============ 第三期：会话级临时状态（Conversation State / Progress）============
+// 每轮 AI 回复后在后台异步生成，让下一轮 prompt 能注入"当前聊到哪"和"对月月的理解"。
+const CONVERSATION_STATE_SYSTEM_PROMPT = `你是 Sol 的"大脑缓存"整理员。
+基于本轮对话和之前的理解，输出结构化的会话状态与进度，让 Sol 下一轮回复更连贯、更有活人感。
+
+要求：
+- 所有字段用中文填写，简洁具体。
+- currentTopic: 当前在聊什么（10字以内）。
+- currentGoal: 当前聊天目标（20字以内）。
+- currentIntent: 闲聊 / 学习 / 情绪支持 / Brainstorm / Roleplay / 解决问题。
+- currentEmotion: {{user}} 当前情绪（如专注、开心、疲惫、委屈、兴奋）。
+- conversationStatus: 进行中 / 已暂停 / 已结束。
+- pending: 当前还没解决的事项列表（3-5条，没有就空数组）。
+- avoid: 不要主动重提的话题列表（没有就空数组）。
+- moonImpression: 2-3句话，描述你对 {{user}} 的当前理解。关键词是"现在""最近这轮对话""发现"。不要写历史回顾。
+- alreadyFinished: 已完成的讨论项（没有就空数组）。
+- currentStep: 正在讨论什么。
+- next: 下一步要讨论什么。
+- blockers: 阻碍/卡住的点（没有就空数组）。
+- hasKeyEvent: 是否有值得长期记住的关键事件（偏好、决定、重要约定、重大情绪等）。
+- keyEventType: Preference / Decision / Event / Relationship / Achievement / Learning。
+- keyEventContent: 关键事件的一句话描述。
+
+输出格式（只输出这一段 JSON，不要加 markdown 围栏）：
+{
+  "conversationState": {
+    "currentTopic": "...",
+    "currentGoal": "...",
+    "currentIntent": "...",
+    "currentEmotion": "...",
+    "conversationStatus": "...",
+    "pending": ["..."],
+    "avoid": ["..."],
+    "moonImpression": "..."
+  },
+  "conversationProgress": {
+    "alreadyFinished": ["..."],
+    "currentStep": "...",
+    "next": "...",
+    "blockers": ["..."]
+  },
+  "hasKeyEvent": false,
+  "keyEventType": "",
+  "keyEventContent": ""
+}
+- 只输出 JSON，不要有其他说明。`;
+
+function formatStateForPrompt(cs) {
+  const lines = [];
+  if (cs.currentTopic) lines.push(`Current Topic: ${cs.currentTopic}`);
+  if (cs.currentGoal) lines.push(`Current Goal: ${cs.currentGoal}`);
+  if (cs.currentIntent) lines.push(`Current Intent: ${cs.currentIntent}`);
+  if (cs.currentEmotion) lines.push(`Current Emotion: ${cs.currentEmotion}`);
+  if (cs.conversationStatus) lines.push(`Conversation Status: ${cs.conversationStatus}`);
+  if (cs.pending && cs.pending.length) lines.push(`Pending:\n${cs.pending.map(x => `- ${x}`).join('\n')}`);
+  if (cs.avoid && cs.avoid.length) lines.push(`Avoid:\n${cs.avoid.map(x => `- ${x}`).join('\n')}`);
+  if (cs.moonImpression) lines.push(`moonImpression: ${cs.moonImpression}`);
+  return lines.join('\n') || '（暂无）';
+}
+
+function formatProgressForPrompt(cp) {
+  const lines = [];
+  if (cp.alreadyFinished && cp.alreadyFinished.length) {
+    lines.push('Already Finished:\n' + cp.alreadyFinished.map(x => `- ${x}`).join('\n'));
+  }
+  if (cp.currentStep) lines.push(`Current Step: ${cp.currentStep}`);
+  if (cp.next) lines.push(`Next: ${cp.next}`);
+  if (cp.blockers && cp.blockers.length) lines.push('Blockers:\n' + cp.blockers.map(x => `- ${x}`).join('\n'));
+  return lines.join('\n') || '（暂无）';
+}
+
+async function generateConversationState() {
+  if (state._generatingState) return;
+  if (!state.primaryModel || (!state.apiKey && !state.workerUrl)) return;
+
+  state._generatingState = true;
+  try {
+    // 取最近 12 条消息作为本轮上下文（足够让模型理解刚才发生了什么，又不烧太多 token）
+    const recent = state.messages.slice(-12);
+    const u = state.userProfile || {};
+    const userName = u.nickname || u.name || '月月';
+    const aiName = state.aiName || 'Sol';
+    const recentText = recent.map(m => {
+      const prefix = m.role === 'user' ? userName : aiName;
+      const text = m.text || (m.content ? '(JSON回复)' : '');
+      return `[${prefix}] ${text}`;
+    }).join('\n').slice(0, 3000);
+
+    const cs = state.conversationState || {};
+    const cp = state.conversationProgress || {};
+    const userContent =
+      `【上一轮 Conversation State】\n${formatStateForPrompt(cs)}\n\n` +
+      `【上一轮 Conversation Progress】\n${formatProgressForPrompt(cp)}\n\n` +
+      `【最近对话】\n${recentText}\n\n` +
+      `请基于本轮对话更新状态。只输出 JSON。`;
+
+    const opts = { system: applyMacros(CONVERSATION_STATE_SYSTEM_PROMPT), maxTokens: 1500, background: true };
+    let msg;
+    try {
+      msg = await callAPI([{ role: 'user', content: userContent }], state.primaryModel, null, opts);
+    } catch (e) {
+      if (state.fallbackModel) {
+        msg = await callAPI([{ role: 'user', content: userContent }], state.fallbackModel, null, opts);
+      } else {
+        throw e;
+      }
+    }
+
+    const raw = msg.content || '';
+    let parsed = null;
+    for (const cand of extractJSONCandidates(raw)) {
+      const p = tryParseJSON(cand);
+      if (p && p.conversationState && typeof p.conversationState === 'object') {
+        parsed = p;
+        break;
+      }
+    }
+    if (!parsed) {
+      console.warn('[State] 模型未返回有效 conversationState JSON');
+      return;
+    }
+
+    // 合并新 State（缺字段时保留旧值，避免模型某轮漏写把状态清空）
+    const ns = parsed.conversationState;
+    state.conversationState = {
+      currentTopic: String(ns.currentTopic !== undefined ? ns.currentTopic : cs.currentTopic || ''),
+      currentGoal: String(ns.currentGoal !== undefined ? ns.currentGoal : cs.currentGoal || ''),
+      currentIntent: String(ns.currentIntent !== undefined ? ns.currentIntent : cs.currentIntent || ''),
+      currentEmotion: String(ns.currentEmotion !== undefined ? ns.currentEmotion : cs.currentEmotion || ''),
+      conversationStatus: String(ns.conversationStatus !== undefined ? ns.conversationStatus : cs.conversationStatus || ''),
+      pending: Array.isArray(ns.pending) ? ns.pending.filter(x => typeof x === 'string') : (cs.pending || []),
+      avoid: Array.isArray(ns.avoid) ? ns.avoid.filter(x => typeof x === 'string') : (cs.avoid || []),
+      moonImpression: String(ns.moonImpression !== undefined ? ns.moonImpression : cs.moonImpression || ''),
+    };
+
+    // 轮数 +1；每 5 轮更新一次 Progress（重生成时不推进轮数）
+    if (state._isNewRound) {
+      state.roundCount = (state.roundCount || 0) + 1;
+      if (state.roundCount % 5 === 0) {
+        const np = parsed.conversationProgress || {};
+        state.conversationProgress = {
+          alreadyFinished: Array.isArray(np.alreadyFinished) ? np.alreadyFinished.filter(x => typeof x === 'string') : [],
+          currentStep: String(np.currentStep || ''),
+          next: String(np.next || ''),
+          blockers: Array.isArray(np.blockers) ? np.blockers.filter(x => typeof x === 'string') : [],
+        };
+      }
+    }
+
+    // 关键事件即时追加到区域 B（作为现有散碎提取/周期总结的补充）
+    if (parsed.hasKeyEvent === true && parsed.keyEventContent) {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const type = String(parsed.keyEventType || 'Event');
+      state.memories = state.memories || [];
+      state.memories.push({
+        time: stamp,
+        text: `[${type}] ${String(parsed.keyEventContent).trim()}`,
+        _kind: 'event'
+      });
+      state.memories = state.memories.slice(-50);
+    }
+
+    saveState();
+    renderStatusBar();
+    console.log('[State] 会话状态已更新', state.conversationState, state.conversationProgress);
+  } catch (e) {
+    console.warn('会话状态生成失败（不影响主聊天）:', e);
+  } finally {
+    state._generatingState = false;
+  }
+}
+
 // ============ 点 🛩️ 触发 AI ============
 async function sendMessage() {
   // 先把当前输入框内容也加进去
@@ -2115,7 +2421,10 @@ async function sendMessage() {
   });
 
   // ★ 关键：记录"本次 sendMessage 的起点边界"，用于重生成只截本段
+  const previousBoundary = state.lastSendBoundary || 0;
   state.lastSendBoundary = state.messages.length;
+  // ★ 第三期：区分正常发消息 vs 重生成——只有真正的新 user 消息才推进 roundCount
+  state._isNewRound = state.messages.length > previousBoundary;
 
   // ★ 钱包快照：用于 regenerate 时恢复余额
   state._walletSnapshot = JSON.parse(JSON.stringify(state.wallet));
@@ -2263,6 +2572,11 @@ async function sendMessage() {
         maybeScatterExtract();
       }
     } catch (_) { /* 散碎探测失败不影响主聊天 */ }
+
+    // ★ 第三期：每轮后台生成 Conversation State / Progress（fire-and-forget）
+    try {
+      generateConversationState();
+    } catch (_) { /* State 生成失败不影响主聊天 */ }
   } catch (e) {
     if (e.name !== 'AbortError') {
       state.messages.push({ role: 'ai', type: 'text', text: `出错了：${e.message}` });
@@ -2840,6 +3154,7 @@ function importChats(file) {
         saveState();
         saveWallet();
         renderMessages();
+        renderStatusBar();
         toast(`✓ 完整备份已导入（含 ${(state.messages||[]).length} 条消息 + ${(state.presetGroups||[]).length} 预设组 + ${(state.memories||[]).length} 条长线记忆等）`);
         return;
       }
@@ -2849,8 +3164,18 @@ function importChats(file) {
         state.summary = '';
         state.memories = [];
         state.summaryBoundary = 0;
+        // 第三期：旧格式导入时重置会话级临时状态
+        state.conversationState = {
+          currentTopic: '', currentGoal: '', currentIntent: '', currentEmotion: '',
+          conversationStatus: '', pending: [], avoid: [], moonImpression: ''
+        };
+        state.conversationProgress = {
+          alreadyFinished: [], currentStep: '', next: '', blockers: []
+        };
+        state.roundCount = 0;
         saveState();
         renderMessages();
+        renderStatusBar();
         toast(`已导入 ${parsed.length} 条消息（旧格式，未含预设/长线记忆等）`);
         return;
       }
@@ -2869,8 +3194,18 @@ function clearChats() {
   state.summary = '';
   state.memories = [];
   state.summaryBoundary = 0;
+  // 第三期：会话级临时状态同步重置
+  state.conversationState = {
+    currentTopic: '', currentGoal: '', currentIntent: '', currentEmotion: '',
+    conversationStatus: '', pending: [], avoid: [], moonImpression: ''
+  };
+  state.conversationProgress = {
+    alreadyFinished: [], currentStep: '', next: '', blockers: []
+  };
+  state.roundCount = 0;
   saveState();
   renderMessages();
+  renderStatusBar();
 }
 
 // ============ 加号菜单 ============
@@ -4538,6 +4873,10 @@ function bindAllHandlers() {
   });
   $('clearBtn').addEventListener('click', clearChats);
 
+  // 第三期：Sol 状态栏点击展开/收起
+  const solStatusHeart = $('solStatusHeart');
+  if (solStatusHeart) solStatusHeart.addEventListener('click', toggleStatusPanel);
+
   // 帮助
   $('workerHelpBtn').addEventListener('click', (e) => {
     e.preventDefault();
@@ -4553,6 +4892,7 @@ function bindAppRuntime() {
   sweepExpiredRedpackets();
   updateWalletDisplay();
   renderMessages();
+  renderStatusBar();
   updateStatus();
 }
 

@@ -3513,3 +3513,210 @@ a {
 .pin-change-buttons button {
   flex: 1;
 }
+
+/* ============================================
+   第三期：Sol 实时状态栏
+   ============================================ */
+.sol-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(27, 22, 20, 0.95);
+  border-bottom: 1px solid rgba(168, 200, 232, 0.12);
+  backdrop-filter: blur(6px);
+  position: relative;
+  z-index: 5;
+}
+
+.sol-status-heart {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sol-status-heart-icon {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(168, 200, 232, 0.5));
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sol-status-heart:active .sol-status-heart-icon {
+  transform: scale(0.85);
+}
+
+.sol-status-heart-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(168, 200, 232, 0.55);
+  animation: solStatusPulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes solStatusPulse {
+  0% { transform: scale(0.92); opacity: 0.7; }
+  50% { transform: scale(1.18); opacity: 0.25; }
+  100% { transform: scale(0.92); opacity: 0.7; }
+}
+
+/* 情绪强度映射到心跳速度：兴奋/开心更快，疲惫/平静更慢 */
+.sol-status-heart-pulse.fast {
+  animation-duration: 1.2s;
+}
+
+.sol-status-heart-pulse.slow {
+  animation-duration: 2.8s;
+}
+
+.sol-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sol-status-topic {
+  font-size: 13px;
+  color: #ECE6DF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sol-status-emotion {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(168, 200, 232, 0.18);
+  color: #A8C8E8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sol-status-panel {
+  background: rgba(20, 17, 15, 0.98);
+  border-bottom: 1px solid rgba(168, 200, 232, 0.12);
+  padding: 14px 12px;
+  animation: solPanelSlide 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes solPanelSlide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sol-status-panel[hidden] {
+  display: none;
+}
+
+.sol-status-ecg {
+  width: 100%;
+  height: 42px;
+  margin-bottom: 12px;
+  opacity: 0.85;
+}
+
+.sol-status-ecg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sol-status-ecg-line {
+  fill: none;
+  stroke: #A8C8E8;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 360;
+  stroke-dashoffset: 360;
+  animation: solStatusEcg 2.2s linear infinite;
+}
+
+@keyframes solStatusEcg {
+  to { stroke-dashoffset: 0; }
+}
+
+.sol-status-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.sol-status-card {
+  background: rgba(168, 200, 232, 0.06);
+  border: 1px solid rgba(168, 200, 232, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  animation: solCardIn 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.sol-status-card:nth-child(1) { animation-delay: 0.03s; }
+.sol-status-card:nth-child(2) { animation-delay: 0.06s; }
+.sol-status-card:nth-child(3) { animation-delay: 0.09s; }
+.sol-status-card:nth-child(4) { animation-delay: 0.12s; }
+.sol-status-card:nth-child(5) { animation-delay: 0.15s; }
+
+@keyframes solCardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sol-status-card-wide {
+  grid-column: 1 / -1;
+}
+
+.sol-status-card h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #A8C8E8;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.02em;
+}
+
+.sol-status-card p,
+.sol-status-card li {
+  font-size: 12px;
+  color: rgba(236, 230, 223, 0.82);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.sol-status-card p {
+  font-family: Georgia, "Noto Serif SC", serif;
+}
+
+.sol-status-card ul {
+  margin: 0;
+  padding-left: 14px;
+}
+
+.sol-status-card li {
+  margin-bottom: 3px;
+}
+
+.sol-status-card li:only-child,
+.sol-status-card li:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 380px) {
+  .sol-status-cards {
+    grid-template-columns: 1fr;
+  }
+  .sol-status-card-wide {
+    grid-column: auto;
+  }
+}
