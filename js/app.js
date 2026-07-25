@@ -2119,7 +2119,8 @@ async function sendMessage() {
     // 如果本轮只调了工具（比如纯发/领红包）且没有文字内容，就别塞"（空回复）"气泡了
     const rawReply = message.content || '';
     const parsedMessages = (!rawReply && toolLoops > 0) ? [] : parseAIResponse(rawReply);
-    parsedMessages.forEach((msg) => {
+    const sanitizedMessages = sanitizeAIMessages(parsedMessages); // 兜底 voice 单条 + 引用不重复
+    sanitizedMessages.forEach((msg) => {
       if (msg._direct) {
         // 内联工具产生的消息（红包/系统事件），已有完整 role + type
         delete msg._direct;
@@ -2499,6 +2500,38 @@ function fallbackPlainText(raw) {
     }
   });
   return out.length ? out : [{ type: 'text', text: cleaned }];
+}
+
+// ponytail: 解析 AI 回复后的前端兜底。prompt 已经教过 AI 别双发，但作为最后一道防线：
+//   1. voice 后面紧跟 text/sticker/redpacket/transfer 等"非 voice"消息 → 直接删掉
+//      （voice 自己就是完整表达，这是【语音消息 · 单条铁律】）
+//   2. quote 后面紧跟 text 时，如果 text 前缀复读了 quote.text → 把那段剥掉
+//      （quote 卡片由前端渲染，AI 不该在 content 里再写一遍原话，这是【引用不重复】铁律）
+function sanitizeAIMessages(msgs) {
+  if (!Array.isArray(msgs) || msgs.length < 2) return msgs;
+  const out = [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    const prev = out[out.length - 1];
+    if (prev && prev.type === 'voice' &&
+        (m.type === 'text' || m.type === 'redpacket' || m.type === 'sticker' || m.type === 'transfer' || m.type === 'transfer')) {
+      // voice 后跟了跟随消息 → 丢弃跟随项（不写 state.messages 也不渲染）
+      continue;
+    }
+    if (prev && prev.type === 'quote' &&
+        m.type === 'text' && typeof m.text === 'string') {
+      const quoted = (prev.text || '').trim();
+      if (quoted) {
+        const trimmed = m.text.replace(/^\s+/, '');
+        if (trimmed.startsWith(quoted)) {
+          // ponytail: 剥掉 quote 复读的前缀，再扫掉首部残留的中英文标点/空白
+          m.text = trimmed.slice(quoted.length).replace(/^[\s，。、,.\?!;:；:！?"']+/, '');
+        }
+      }
+    }
+    out.push(m);
+  }
+  return out;
 }
 
 // 解析 AI 回复主入口
