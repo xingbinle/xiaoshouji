@@ -104,7 +104,7 @@ const REDPACKET_TOOLS = [
 
 const STORAGE_KEY = 'xiaoshouji_v01';
 const WALLET_STORAGE_KEY = 'xiaoshouji-wallet-v1';
-const APP_VERSION = 'v26'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
+const APP_VERSION = 'v27'; // 与 sw.js 的 CACHE_NAME 后缀保持一致
 
 // ============ 状态管理 ============
 let state = {
@@ -157,9 +157,9 @@ function _deobf(b64) {
   } catch { return ''; }
 }
 
-// ============ 存储 ============
-function saveState() {
-  const persist = {
+// ============ 存储（v0.3：敏感字段用主密钥 AES-GCM 加密，未解锁时仅 fallback 到旧明文） ============
+function _buildPersist() {
+  return {
     baseUrl: state.baseUrl,
     workerUrl: state.workerUrl,
     primaryModel: state.primaryModel,
@@ -181,55 +181,117 @@ function saveState() {
     summary: state.summary,
     memories: (state.memories || []).slice(-50),
     summaryBoundary: state.summaryBoundary,
+    jailbreak: state.jailbreak,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
+}
+
+function saveState() {
+  const persist = _buildPersist();
+  // ★ 已设主密码且已解锁 → 加密存 secure_v1（敏感字段全加密）
+  //   typeof window 检查让 Node 单测也能跑（不会因为没 SecureCrypto 抛错）
+  const SC = (typeof window !== 'undefined') ? window.SecureCrypto : null;
+  if (SC && SC.isSetup() && SC.isUnlocked()) {
+    SecureCrypto.encryptState(persist).then((enc) => {
+      try {
+        const raw = localStorage.getItem('xiaoshouji_secure_v1');
+        const meta = raw ? JSON.parse(raw) : {};
+        meta.encrypted = enc;
+        meta.updated = Date.now();
+        localStorage.setItem('xiaoshouji_secure_v1', JSON.stringify(meta));
+        // 加密存盘成功 → 旧明文 v01 视为过期，删掉（避免明文备份残留）
+        localStorage.removeItem('xiaoshouji_v01');
+      } catch (e) {
+        console.warn('加密存盘失败：', e);
+      }
+    }).catch((e) => console.warn('加密失败（密码可能已失效）：', e));
+    return;
+  }
+  // ★ 未设密码 → 旧明文 v01（仅过渡用，提示用户尽快设密码）
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(persist)); } catch (e) { console.warn('存盘失败：', e); }
 }
 
 function loadState() {
+  // ★ 主流程：已设主密码 → 同步阶段仅设默认值，解锁后再异步加载加密数据
+  const SC = (typeof window !== 'undefined') ? window.SecureCrypto : null;
+  if (SC && SC.isSetup()) {
+    _applyDefaults();
+    return;
+  }
+  // ★ 未设密码 → 旧 v01 明文（兜底）
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    Object.assign(state, data);
-    state.apiKey = _deobf(data.apiKey || '');
-    // 第一期字段兜底（旧存档没有这些 key）
-    state.userProfile = state.userProfile || { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
-    state.aiProfile = state.aiProfile || { persona: '', preset: '', presetEnabled: true };
-    // 旧版单预设 → 分组结构迁移
-    if (!state.presetGroups) {
-      state.presetGroups = [];
-      if (state.preset && state.preset.prompts && state.preset.prompts.length) {
-        state.presetGroups.push({ id: 'g_migrated', name: state.preset.name || '导入的预设', type: 'preset', enabled: true, items: state.preset.prompts });
-      }
-    }
-    // 旧版平铺正则 → 默认分区迁移
-    if (!state.regexGroups) {
-      state.regexGroups = [{ id: 'g_default', name: '默认分区', enabled: true, rules: state.regexRules || [] }];
-    }
-    if (!state.regexGroups.length) {
-      state.regexGroups.push({ id: 'g_default', name: '默认分区', enabled: true, rules: [] });
-    }
-    state.contextLength = state.contextLength || 30;
-    state.frequencyPenalty = state.frequencyPenalty || 0;
-    state.presencePenalty = state.presencePenalty || 0;
-    state.summary = state.summary || '';
-    state.memories = state.memories || [];
-    state.summaryBoundary = state.summaryBoundary || 0;
-    // 第二期字段兜底
-    state.stickers = state.stickers || [];
-    state.stickerCats = state.stickerCats || {};
-    // 从现有表情包推导分类开关（老数据没有 stickerCats，默认全开）
-    state.stickers.forEach((s) => {
-      const c = s.cat || '默认';
-      if (!(c in state.stickerCats)) state.stickerCats[c] = true;
-    });
-    // ★ 补充功能（破限板块）：独立的强力破限指令
-    state.jailbreak = state.jailbreak || { enabled: true, content: '' };
-    // ★ 兜底：正则防说教内置默认清洗规则
-    ensureDefaultAntiLectureRegex();
+    if (raw) _applyLoaded(JSON.parse(raw));
+    else _applyDefaults();
   } catch (e) {
     console.warn('加载存储失败：', e);
+    _applyDefaults();
   }
+}
+
+// 解锁成功后调用：异步解密 secure_v1 并应用
+async function loadSecureState() {
+  const SC = (typeof window !== 'undefined') ? window.SecureCrypto : null;
+  if (!SC || !SC.isUnlocked()) return false;
+  try {
+    const raw = localStorage.getItem('xiaoshouji_secure_v1');
+    if (!raw) return false;
+    const meta = JSON.parse(raw);
+    if (!meta || !meta.encrypted) return false;
+    const data = await SecureCrypto.decryptState(meta.encrypted);
+    _applyLoaded(data);
+    return true;
+  } catch (e) {
+    console.warn('解密加载失败：', e);
+    return false;
+  }
+}
+
+function _applyLoaded(data) {
+  Object.assign(state, data);
+  state.apiKey = _deobf(data.apiKey || '');
+  // 第一期字段兜底（旧存档没有这些 key）
+  state.userProfile = state.userProfile || { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
+  state.aiProfile = state.aiProfile || { persona: '', preset: '', presetEnabled: true };
+  if (!state.presetGroups) {
+    state.presetGroups = [];
+    if (state.preset && state.preset.prompts && state.preset.prompts.length) {
+      state.presetGroups.push({ id: 'g_migrated', name: state.preset.name || '导入的预设', type: 'preset', enabled: true, items: state.preset.prompts });
+    }
+  }
+  if (!state.regexGroups) {
+    state.regexGroups = [{ id: 'g_default', name: '默认分区', enabled: true, rules: state.regexRules || [] }];
+  }
+  if (!state.regexGroups.length) {
+    state.regexGroups.push({ id: 'g_default', name: '默认分区', enabled: true, rules: [] });
+  }
+  state.contextLength = state.contextLength || 30;
+  state.frequencyPenalty = state.frequencyPenalty || 0;
+  state.presencePenalty = state.presencePenalty || 0;
+  state.summary = state.summary || '';
+  state.memories = state.memories || [];
+  state.summaryBoundary = state.summaryBoundary || 0;
+  state.stickers = state.stickers || [];
+  state.stickerCats = state.stickerCats || {};
+  state.stickers.forEach((s) => {
+    const c = s.cat || '默认';
+    if (!(c in state.stickerCats)) state.stickerCats[c] = true;
+  });
+  state.jailbreak = state.jailbreak || { enabled: true, content: '' };
+  ensureDefaultAntiLectureRegex();
+}
+
+function _applyDefaults() {
+  // 解锁前的默认值（让 UI 不会全空）
+  state.userProfile = state.userProfile || { avatar: '', name: '', nickname: '', gender: '', birthday: '', bio: '' };
+  state.aiProfile = state.aiProfile || { persona: '', preset: '', presetEnabled: true };
+  state.presetGroups = state.presetGroups || [];
+  state.regexGroups = state.regexGroups && state.regexGroups.length
+    ? state.regexGroups
+    : [{ id: 'g_default', name: '默认分区', enabled: true, rules: [] }];
+  state.stickers = state.stickers || [];
+  state.stickerCats = state.stickerCats || {};
+  state.jailbreak = state.jailbreak || { enabled: true, content: '' };
+  ensureDefaultAntiLectureRegex();
 }
 
 // ============ 钱包 ============
@@ -578,7 +640,21 @@ function buildMessageNode(msg, idx) {
     } else {
       bubble.appendChild(el('div', { class: 'sticker-placeholder' }, '😀 ' + (msg.text || msg.sticker || '[表情包]')));
     }
-  } else if (msg.text) {
+  }
+
+  // ★ 气泡内引用小卡片（微信同款：半透明背景 + 主题色竖边框 + 小一号字体）
+  //   不要把引用织进正文 text，单独渲染一个嵌入式缩略卡片
+  if (msg.quote && (msg.role === 'user' || msg.role === 'ai')) {
+    const q = msg.quote;
+    const card = el('div', { class: 'msg-quote-card' });
+    const body = el('div', { class: 'msg-quote-card-body' });
+    body.appendChild(el('div', { class: 'msg-quote-card-from' }, `${q.from || '对方'}`));
+    body.appendChild(el('div', { class: 'msg-quote-card-text' }, q.text || ''));
+    card.appendChild(body);
+    bubble.appendChild(card);
+  }
+
+  if (msg.text) {
     const parts = splitCodeBlocks(msg.text);
     parts.forEach((part) => {
       if (part.type === 'code' && /html/i.test(part.lang)) {
@@ -651,6 +727,19 @@ function buildMessageNode(msg, idx) {
   delBtn.appendChild(icon('i-trash', 'icon-sm'));
   delBtn.addEventListener('click', () => deleteMessage(idx));
   actions.appendChild(delBtn);
+
+  // ★ pending 用户消息专属撤回按钮（仅删除这一条，不影响后续消息）
+  if (msg.pending && msg.role === 'user') {
+    const recallPendingBtn = el('button', { class: 'msg-action-btn msg-recall-pending', title: '撤回', 'aria-label': '撤回这条消息' });
+    recallPendingBtn.appendChild(icon('i-x', 'icon-sm'));
+    recallPendingBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.messages.splice(idx, 1);
+      saveState();
+      renderMessages();
+    });
+    actions.appendChild(recallPendingBtn);
+  }
 
   bubbleWrap.appendChild(bubble);
   bubbleWrap.appendChild(actions);
@@ -936,11 +1025,9 @@ function enterSendToChat() {
   const text = $('messageInput').value;
   if (!text || !text.trim()) return;
 
-  // ★ 引用回复：如果有 _pendingQuote，每条新消息前面织入「> 引用内容：...」上下文
+  // ★ 引用回复：不再把引用织进正文 text，而是单独存在 msg.quote，
+  //   buildMessageNode 里渲染成"气泡上方的微信同款精致小卡片"
   const quote = state._pendingQuote;
-  const quotePrefix = quote
-    ? `> 引用内容：${quote.text}\n\n`
-    : '';
 
   // 支持 Shift+Enter 多行 → 拆成多条消息
   const lines = text.split('\n').filter((l) => l.trim().length > 0);
@@ -948,9 +1035,9 @@ function enterSendToChat() {
     state.messages.push({
       role: 'user',
       type: 'text',
-      text: (i === 0 ? quotePrefix : '') + line.trim(),
+      text: line.trim(),
       pending: true,  // 已发到聊天界面，但没发给 AI
-      quote: quote || null,  // 渲染时显示"引用了 XXX"
+      quote: i === 0 ? (quote || null) : null,  // 只在第一条消息上挂引用
     });
   });
 
@@ -1038,6 +1125,10 @@ function serializeSingleMessage(m) {
     return null;
   }
   let content = m.text || '';
+  // ★ 引用信息只在文本上呈现给 AI（气泡内小卡片只用于 UI 渲染）
+  if (m.quote && role === 'user') {
+    content = `> 引用 ${m.quote.from || '对方'}：${m.quote.text || ''}\n\n` + content;
+  }
   if (m.edited) content += ' (已编辑)';
   return { role, content };
 }
@@ -1359,16 +1450,32 @@ function openStickerAddPanel(rows) {
   _stkAddRows = rows;
   const box = $('stkAddRows');
   box.innerHTML = '';
-  rows.forEach((r) => {
+  rows.forEach((r, i) => {
     const row = el('div', { class: 'stk-add-row' });
+    // ★ 缩略图 + 右上角删除按钮：批量导入超出上限时，用户可以手动剔除
+    const imgWrap = el('div', { class: 'stk-add-thumb' });
     const img = el('img', { class: 'stk-thumb', alt: '' });
     img.src = r.previewUrl;
-    row.appendChild(img);
+    imgWrap.appendChild(img);
+    const delBtn = el('button', { class: 'stk-add-x', title: '移除这张', 'aria-label': '移除这张' });
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => {
+      // 释放预览 URL（local 类型的 blob 才需要 revoke）
+      if (r.blob && r.previewUrl) URL.revokeObjectURL(r.previewUrl);
+      _stkAddRows.splice(i, 1);
+      // 重新渲染（i 变了，全量重建最稳）
+      openStickerAddPanel(_stkAddRows);
+    });
+    imgWrap.appendChild(delBtn);
+    row.appendChild(imgWrap);
     const inp = el('input', { type: 'text', class: 'field-input', value: r.name, maxlength: 30, placeholder: '备注名（AI 靠它认图）' });
     inp.addEventListener('input', () => { r.name = inp.value.trim(); });
     row.appendChild(inp);
     box.appendChild(row);
   });
+  // 顶部小提示：当前待入库数量
+  const tip = $('stkAddTip');
+  if (tip) tip.textContent = `共 ${rows.length} 张待入库${rows.length > 50 ? '（超 50 上限，点 × 删掉一些）' : ''}`;
   $('stkAddPanel').hidden = false;
   $('stkAddCat').focus();
 }
@@ -1600,8 +1707,12 @@ function toggleStickerPicker(force) {
 }
 
 // ---- 拍一拍：双击 AI 头像，纯本地轻量系统消息 + 待织入下次真实消息 ----
+// ★ 归属权：这是"用户拍 AI"的动作。
+//   后缀读 state.userProfile.patSuffix（用户设定界面输入框 id=userPatSuffix 控制），
+//   与"AI 拍用户"用的 state.aiProfile.patSuffix 严格独立，存储在不同的 state 子树。
 function patAI() {
   if (state.aiGenerating) return;
+  // ★ 用户拍 AI 的后缀，只读 userProfile.patSuffix（绝不读 aiProfile.patSuffix）
   const suffix = (state.userProfile && state.userProfile.patSuffix) || '的小脑袋';
   state.messages.push({ role: 'user', type: 'pat', text: `你拍了拍${state.aiName}${suffix}` });
   // 待织入：等月月下次主动发消息时，pat 事件作为环境动作带进 payload
@@ -1711,20 +1822,8 @@ async function sendMessage() {
   // 先把当前输入框内容也加进去
   enterSendToChat();
 
-  // ★ 把待发送图片拼成消息入队（pending 标记等会儿一起清）
-  if (state._pendingImages && state._pendingImages.length) {
-    state._pendingImages.forEach((img) => {
-      state.messages.push({
-        role: 'user',
-        type: 'image',
-        text: '',
-        imageUrl: img.dataUrl,
-        pending: true,
-      });
-    });
-    state._pendingImages = [];
-    renderPendingImages();
-  }
+  // ★ 图片走"选图即上屏"路径：选图时已经直接 push 到 messages（pending=true），
+  //   这里不再重复入队，只负责统一清掉所有 pending 标记
 
   // ★ 把"刚刚发生的拍一拍"作为环境动作描述织入下次 payload
   //   不动聊天显示（已经有一条 pat 系统消息），只在 payload 末尾加一句环境描写
@@ -2136,8 +2235,12 @@ function processParsedMessage(m) {
     return null;
   }
 
-  // ★ 拍一拍（AI 拍回）：渲染成灰色居中提示
+  // ★ 拍一拍（AI 拍用户）：渲染成灰色居中提示
+  //   归属权：这是"AI 拍用户"的动作。后缀只读 state.aiProfile.patSuffix
+  //   （AI 角色设定界面输入框 id=aiPatSuffix 控制），
+  //   与"用户拍 AI"用的 state.userProfile.patSuffix 严格独立。
   if (type === 'pat') {
+    // ★ AI 拍用户的后缀，只读 aiProfile.patSuffix（绝不读 userProfile.patSuffix）
     const suffix = (state.aiProfile && state.aiProfile.patSuffix) || '的肩膀';
     return { type: 'pat', text: `${state.aiName}拍了拍你${suffix}` };
   }
@@ -2292,55 +2395,26 @@ function updateStatus() {
   $('statusSub').textContent = ok ? `${state.aiName}` : '未连接';
 }
 
-// ============ 图片上传（v0.3：仅入队待发送，不自动触发 API） ============
+// ============ 图片上传（v0.3：传图即静默，图片立刻上屏但不触发 API） ============
+// 修复：用户选图后立刻在聊天界面渲染图片气泡（pending=true 虚线标记），
+//       点 🛩️ 才取消 pending 标记一并打包给 AI。
 function handleImageUpload(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    // ★ 作为待发送附件静默入队，点击小飞机发送时再随文本一起发
-    state._pendingImages = state._pendingImages || [];
-    state._pendingImages.push({ dataUrl: e.target.result, name: file.name || 'image' });
+    state.messages.push({
+      role: 'user',
+      type: 'image',
+      text: '',
+      imageUrl: e.target.result,
+      name: file.name || 'image',
+      pending: true,  // 已在聊天界面，但还没发给 AI
+    });
     saveState();
-    renderPendingImages();
+    renderMessages();
+    toast('🖼️ 图片已加到聊天，点 ✈️ 一起发送给 AI');
   };
   reader.readAsDataURL(file);
-}
-
-// 渲染输入区上方的"待发送图片"条
-function renderPendingImages() {
-  let bar = $('pendingImagesBar');
-  const list = state._pendingImages || [];
-  if (!list.length) {
-    if (bar) bar.remove();
-    return;
-  }
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'pendingImagesBar';
-    bar.className = 'pending-images-bar';
-    const inputArea = $('messageInput').closest('footer, .input-area');
-    if (inputArea) inputArea.insertBefore(bar, inputArea.firstChild);
-  }
-  bar.innerHTML = '';
-  list.forEach((img, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'pending-img';
-    const im = document.createElement('img');
-    im.src = img.dataUrl;
-    im.alt = img.name;
-    const close = document.createElement('button');
-    close.className = 'pending-img-x';
-    close.textContent = '×';
-    close.setAttribute('aria-label', '移除');
-    close.onclick = () => { list.splice(i, 1); saveState(); renderPendingImages(); };
-    wrap.appendChild(im);
-    wrap.appendChild(close);
-    bar.appendChild(wrap);
-  });
-  const hint = document.createElement('span');
-  hint.className = 'pending-img-hint';
-  hint.textContent = `📎 ${list.length} 张待发，点 ✈️ 一起发送`;
-  bar.appendChild(hint);
 }
 
 // ============ 导出/导入/清空 ============
@@ -2752,7 +2826,7 @@ function handleSticker() {
 }
 
 // ============ 第一期：小手机全屏视图（菜单页 + 功能子页面） ============
-const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）' };
+const MP_TITLES = { menu: '小手机', preset: '预设管理', jailbreak: '补充功能（破限）', regex: '正则替换', ai: 'AI 角色设定', user: '用户设定', sticker: '表情包', debug: '调试后台', summary: '长线记忆（滚动总结）', monster: '🍊 像素小怪兽 · 互动彩蛋' };
 
 let mpCurrent = 'menu';
 
@@ -2783,6 +2857,56 @@ function navMp(page) {
   if (page === 'debug') renderDebugPanel();
   if (page === 'sticker') { renderStickerGroups(); showStickerStorageTip(); }
   if (page === 'summary') renderSummaryPanel();
+  if (page === 'monster') renderMonsterArena();
+}
+
+// ============ 像素小怪兽互动彩蛋 ============
+// 5 种动画随机播放；次数每次点击 +1；连击 5 次触发"组合连招"
+const MONSTER_ANIMS = ['spin', 'jump', 'shake', 'bounce', 'wiggle'];
+const MONSTER_COMBO_GREETINGS = [
+  '🍊 它今天心情好！',
+  '✨ 它在跟月月撒娇',
+  '🎉 它学了一个新舞步',
+  '💪 它抖擞精神准备上班',
+  '🌟 连击！它超开心',
+];
+let _monsterClicks = 0;
+let _monsterBusy = false;
+function renderMonsterArena() {
+  // 重置点击数（每次进入彩蛋区重新开始计数）
+  _monsterClicks = 0;
+  const c = $('monsterClicks');
+  if (c) c.textContent = '0';
+}
+function bindMonsterArena() {
+  const stage = $('monsterStage');
+  const monster = $('bigMonster');
+  if (!stage || !monster) return;
+  stage.addEventListener('click', () => {
+    if (_monsterBusy) return;
+    _monsterClicks += 1;
+    const c = $('monsterClicks');
+    if (c) c.textContent = String(_monsterClicks);
+
+    // 随机动画 + 强制重启动画（先移除 class，再 reflow 再加）
+    const anim = MONSTER_ANIMS[Math.floor(Math.random() * MONSTER_ANIMS.length)];
+    monster.classList.remove(...MONSTER_ANIMS);
+    void monster.offsetWidth; // 触发 reflow
+    monster.classList.add(anim);
+
+    // 连击提示：每 5 次 toast 一句
+    if (_monsterClicks > 0 && _monsterClicks % 5 === 0) {
+      const greet = MONSTER_COMBO_GREETINGS[Math.floor(Math.random() * MONSTER_COMBO_GREETINGS.length)];
+      toast(greet);
+    }
+
+    // 播放完解除 busy + 清掉 class（动画时长 0.9s）
+    _monsterBusy = true;
+    setTimeout(() => {
+      monster.classList.remove(...MONSTER_ANIMS);
+      _monsterBusy = false;
+    }, 950);
+  });
 }
 
 // ============ 调试后台：黄金顺序可视化 ============
@@ -2981,10 +3105,54 @@ function renderSummaryPanel() {
   if (!mems.length) {
     list.appendChild(el('div', { class: 'field-hint' }, '（还没有长期记忆 — 满 10 轮总结时自动提取）'));
   } else {
-    mems.slice().reverse().forEach((m) => {
-      list.appendChild(el('div', { class: 'summary-memory-item' }, `${m.text} · ${m.time}`));
+    // ★ 渲染顺序保持最新在上；点击修改/删除时按"显示时的真实 index"操作 mems 数组
+    //   反转后展示：原始索引 i 展示在 i 显示位 → 用显示位推回原始数组索引
+    const reversed = mems.map((m, i) => ({ m, i })).reverse();
+    reversed.forEach(({ m, i }) => {
+      const item = el('div', { class: 'summary-memory-item' });
+      const text = el('span', { class: 'summary-memory-text' }, `${m.text} · ${m.time}`);
+      item.appendChild(text);
+
+      const ops = el('span', { class: 'summary-memory-ops' });
+      // 修改按钮
+      const editBtn = el('button', { class: 'summary-memory-btn', title: '修改', 'aria-label': '修改' });
+      editBtn.textContent = '✎';
+      editBtn.addEventListener('click', () => editMemoryByIndex(i));
+      ops.appendChild(editBtn);
+      // 删除按钮
+      const delBtn = el('button', { class: 'summary-memory-btn summary-memory-del', title: '删除', 'aria-label': '删除' });
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => deleteMemoryByIndex(i));
+      ops.appendChild(delBtn);
+
+      item.appendChild(ops);
+      list.appendChild(item);
     });
   }
+}
+
+// ★ 长期记忆条目化操作
+// 编辑：弹窗修改文本并保存
+function editMemoryByIndex(i) {
+  if (i < 0 || i >= (state.memories || []).length) return;
+  const target = state.memories[i];
+  const next = prompt('修改这条长期记忆：', target.text || '');
+  if (next === null) return; // 取消
+  const trimmed = next.trim();
+  if (!trimmed) { toast('内容不能为空'); return; }
+  state.memories[i] = { ...target, text: trimmed };
+  saveState();
+  renderSummaryPanel();
+  toast('已保存 ✓');
+}
+// 删除：立即从列表剔除，同步到底层 state.memories
+function deleteMemoryByIndex(i) {
+  if (i < 0 || i >= (state.memories || []).length) return;
+  if (!confirm('删除这条长期记忆？')) return;
+  state.memories.splice(i, 1);
+  saveState();
+  renderSummaryPanel();
+  toast('已删除');
 }
 
 function saveJailbreak() {
@@ -3420,6 +3588,148 @@ function saveRegexEditor() {
 }
 
 // ============ 初始化 ============
+// ============ 开机密码弹窗（v0.3 端到端加密 · 全屏锁定直到解锁） ============
+let _lockUnlockAttempts = 0;
+function showLockPanel(mode) {
+  const panel = $('lockPanel');
+  if (!panel) return;
+  panel.hidden = false;
+  if (mode === 'setup') {
+    $('lockSetupForm').hidden = false;
+    $('lockUnlockForm').hidden = true;
+    $('lockTitle').textContent = '设置小手机密码';
+    $('lockDesc').textContent = '密码会保护你的聊天记录、人物设定、记忆总结。密码不会上传，忘了就只能重置（清空云端数据）。';
+    setTimeout(() => $('lockPw').focus(), 100);
+  } else {
+    $('lockSetupForm').hidden = true;
+    $('lockUnlockForm').hidden = false;
+    $('lockTitle').textContent = '🔒 小手机已加密';
+    $('lockDesc').textContent = '输入主密码以解锁 · 密码错了就看不到任何聊天内容';
+    setTimeout(() => $('lockUnlockPw').focus(), 100);
+  }
+  updateLockAttempts();
+}
+function hideLockPanel() {
+  const panel = $('lockPanel');
+  if (panel) panel.hidden = true;
+}
+function updateLockAttempts() {
+  const tip = $('lockAttempts');
+  if (!tip) return;
+  if (_lockUnlockAttempts === 0) { tip.textContent = ''; return; }
+  if (_lockUnlockAttempts < 3) {
+    tip.textContent = `⚠️ 已错 ${_lockUnlockAttempts} 次，再错 3 次会自动清空`;
+  } else {
+    tip.textContent = '🔒 已锁定 · 试试"忘了密码"重置（会清空云端数据）';
+  }
+}
+// 密码强度评分（0-100）
+function scorePassword(pw) {
+  if (!pw) return 0;
+  let s = Math.min(pw.length * 6, 50);                  // 长度贡献
+  if (/[A-Z]/.test(pw)) s += 10;
+  if (/[a-z]/.test(pw)) s += 10;
+  if (/\d/.test(pw)) s += 10;
+  if (/[^A-Za-z0-9]/.test(pw)) s += 15;
+  if (/^(.)\1+$/.test(pw)) s = Math.min(s, 18);         // 全相同字符直接砍
+  return Math.min(s, 100);
+}
+function renderLockStrength() {
+  const pw = $('lockPw').value;
+  const s = scorePassword(pw);
+  const fill = $('lockStrengthFill');
+  const text = $('lockStrengthText');
+  if (!fill || !text) return;
+  fill.style.width = s + '%';
+  let label = '太短', color = '#B86B6B';
+  if (s >= 80) { label = '强 ✓'; color = '#4FB47C'; }
+  else if (s >= 55) { label = '中等'; color = '#D4A95C'; }
+  else if (s >= 25) { label = '较弱'; color = '#E08A6F'; }
+  fill.style.background = color;
+  text.textContent = label;
+  text.style.color = color;
+}
+
+async function tryUnlock() {
+  const pw = $('lockUnlockPw').value;
+  if (!pw) { toast('先输密码再解锁哦'); return; }
+  const ok = await SecureCrypto.unlock(pw);
+  if (ok) {
+    _lockUnlockAttempts = 0;
+    $('lockUnlockPw').value = '';
+    const loaded = await loadSecureState();
+    if (!loaded) {
+      // 还没存过加密数据 → 仅触发一次默认存盘即可
+      saveState();
+    }
+    hideLockPanel();
+    // 解锁后把 app 该有的渲染全部补上
+    sweepExpiredRedpackets();
+    updateWalletDisplay();
+    renderMessages();
+    updateStatus();
+    toast('🔓 已解锁');
+  } else {
+    _lockUnlockAttempts += 1;
+    $('lockUnlockPw').value = '';
+    updateLockAttempts();
+    toast('密码不对，再试一下');
+  }
+}
+
+async function trySetup() {
+  const pw = $('lockPw').value;
+  const pw2 = $('lockPw2').value;
+  if (!pw || pw.length < 6) { toast('密码至少 6 位'); return; }
+  if (pw !== pw2) { toast('两次密码不一致'); return; }
+  if (scorePassword(pw) < 25) { toast('密码太弱了，加点字母数字吧'); return; }
+  await SecureCrypto.setupMasterPassword(pw);
+  // 把当前默认值首次加密入库
+  saveState();
+  hideLockPanel();
+  sweepExpiredRedpackets();
+  updateWalletDisplay();
+  renderMessages();
+  updateStatus();
+  toast('🔐 密码已设置，加密开启');
+}
+
+function forgotPassword() {
+  const msg = '忘了密码只能重置（会清掉云端数据，本地表情包/图片保留）。\n\n确定要清空云端加密数据吗？';
+  if (!confirm(msg)) return;
+  // ★ 真正"重置"：清掉 secure_v1（加密元数据）和所有受保护字段
+  //   v01 明文已不存在（首次上锁后旧版会清掉）；本地 sticker/image 等不动
+  try {
+    localStorage.removeItem('xiaoshouji_secure_v1');
+    localStorage.removeItem('xiaoshouji_v01');
+  } catch (e) { /* ignore */ }
+  SecureCrypto.lock();
+  _lockUnlockAttempts = 0;
+  // 回到 setup 流程
+  showLockPanel('setup');
+  $('lockPw').value = '';
+  $('lockPw2').value = '';
+  toast('已重置 · 请重新设置密码');
+}
+
+function bindLockPanel() {
+  $('lockSetupBtn').addEventListener('click', trySetup);
+  $('lockUnlockBtn').addEventListener('click', tryUnlock);
+  $('lockForgotBtn').addEventListener('click', forgotPassword);
+  // 强度条联动
+  $('lockPw').addEventListener('input', renderLockStrength);
+  // Enter 键提交
+  $('lockPw').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('lockPw2').focus(); }
+  });
+  $('lockPw2').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); trySetup(); }
+  });
+  $('lockUnlockPw').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); tryUnlock(); }
+  });
+}
+
 function init() {
   loadState();
   loadWallet();
@@ -3445,6 +3755,13 @@ function init() {
   if (state._pendingImages === undefined) state._pendingImages = [];
   // 应用主题
   applyTheme(state.theme || 'dark');
+  // ★ 端到端加密：未解锁就显示锁屏，app 渲染要等解锁后再做
+  if (window.SecureCrypto && SecureCrypto.isSetup() && !SecureCrypto.isUnlocked()) {
+    bindLockPanel();
+    showLockPanel('unlock');
+    // 锁屏下不渲染聊天/钱包（避免密文态闪烁一下默认值）
+    return;
+  }
   sweepExpiredRedpackets();
   updateWalletDisplay();
   renderMessages();
@@ -3460,6 +3777,8 @@ function init() {
 
   // ===== 第一期：小手机全屏视图（左上角品牌区进入） =====
   $('mpVersion').textContent = APP_VERSION;
+  // 像素小怪兽彩蛋：点击舞台随机播放 5 种动画 + 连击 toast
+  bindMonsterArena();
   $('brandBtn').addEventListener('click', () => openMpView('menu'));
   $('mpBack').addEventListener('click', mpGoBack);
   document.querySelectorAll('.mp-menu-item').forEach((btn) => {

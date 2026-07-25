@@ -606,7 +606,25 @@
           <span class="mp-menu-label">长线记忆（滚动总结）</span>
           <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
         </button>
+        <button class="mp-menu-item" data-mp="monster">
+          <span class="mp-menu-emoji">🍊</span>
+          <span class="mp-menu-label">像素小怪兽 · 互动彩蛋</span>
+          <svg class="icon-sm mp-chevron"><use href="#i-chevron-right"/></svg>
+        </button>
         <div class="mp-version" id="mpVersion"></div>
+      </div>
+
+      <!-- 像素小怪兽 · 1:1 官方复刻 + 互动彩蛋专区 -->
+      <div class="mp-page" id="mpPage-monster" hidden>
+        <div class="monster-arena">
+          <p class="monster-hint">👇 点一下小怪兽，看它耍宝</p>
+          <div class="monster-stage" id="monsterStage">
+            <svg id="bigMonster" class="big-monster" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-label="Claude Orange 像素小怪兽">
+              <use href="#i-claude-orange"/>
+            </svg>
+          </div>
+          <div class="monster-tip" id="monsterTip">点击次数：<span id="monsterClicks">0</span></div>
+        </div>
       </div>
 
       <!-- 预设管理（分组：预设/世界书自动分类） -->
@@ -807,6 +825,7 @@
           <!-- 加入面板：逐张确认备注名 + 选分类（导入/上传共用） -->
           <div class="pe-editor" id="stkAddPanel" hidden>
             <div class="field-hint">逐张确认备注名（AI 靠名字认图），填个分类后加入</div>
+            <div class="field-hint" id="stkAddTip" style="color:var(--sky-deep); font-weight:600;"></div>
             <div id="stkAddRows"></div>
             <input type="text" id="stkAddCat" class="field-input" placeholder="分类名（如：日常）" maxlength="20" value="日常">
             <div class="button-row">
@@ -865,6 +884,48 @@
   </div>
 
   <!-- 帮助面板 -->
+  <!-- 开机密码弹窗（v0.3 端到端加密 · 全屏锁定直到解锁） -->
+  <div class="lock-panel" id="lockPanel" hidden>
+    <div class="lock-content">
+      <div class="lock-icon" id="lockIcon">
+        <svg class="icon-lg"><use href="#i-lock-shield"/></svg>
+      </div>
+      <h2 class="lock-title" id="lockTitle">设置小手机密码</h2>
+      <p class="lock-desc" id="lockDesc">密码会保护你的聊天记录、人物设定、记忆总结。密码不会上传，忘了就只能重置（清空云端数据）。</p>
+
+      <!-- 设置密码状态 -->
+      <div class="lock-form" id="lockSetupForm" hidden>
+        <label class="field">
+          <span class="field-label">新密码</span>
+          <input type="password" id="lockPw" class="field-input" placeholder="至少 6 位，建议字母+数字" autocomplete="new-password">
+          <div class="lock-strength" id="lockStrength">
+            <div class="lock-strength-bar"><div class="lock-strength-fill" id="lockStrengthFill"></div></div>
+            <span class="lock-strength-text" id="lockStrengthText"></span>
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">再输一次</span>
+          <input type="password" id="lockPw2" class="field-input" placeholder="确认密码" autocomplete="new-password">
+        </label>
+        <button class="btn-primary lock-submit" id="lockSetupBtn">🔐 设置并解锁</button>
+        <p class="lock-tip">⚠️ 密码只存在你本地，<b>忘了克宝也救不回来</b>，建议现在截图保存到安全的地方</p>
+      </div>
+
+      <!-- 解锁状态 -->
+      <div class="lock-form" id="lockUnlockForm" hidden>
+        <label class="field">
+          <span class="field-label">主密码</span>
+          <input type="password" id="lockUnlockPw" class="field-input" placeholder="输入你的小手机密码" autocomplete="current-password">
+        </label>
+        <button class="btn-primary lock-submit" id="lockUnlockBtn">🔓 解锁</button>
+        <div class="lock-extra">
+          <button class="lock-link" id="lockForgotBtn">忘了密码 → 重置</button>
+        </div>
+        <p class="lock-tip lock-attempts" id="lockAttempts"></p>
+      </div>
+    </div>
+  </div>
+
   <div class="help-panel" id="workerHelpPanel" hidden>
     <div class="help-mask" id="helpMask"></div>
     <div class="help-content">
@@ -951,6 +1012,7 @@
   <!-- 多选删除条已移至 topbar 之后（见上方）-->
 
   <!-- 图标 sprite 已在 <body> 顶部内联，无需 fetch -->
+  <script src="js/crypto.js"></script>
   <script src="js/app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
