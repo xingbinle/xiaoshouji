@@ -2005,10 +2005,22 @@ a {
 .voice-bubble {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;       /* ponytail: 让 voice-transcript 默认 flex-basis:100% 落到下一行，点击向下展开 */
+  row-gap: 4px;
   cursor: pointer;
   user-select: none;
   min-width: 120px;
+}
+
+.voice-transcript {
+  flex-basis: 100%;      /* ponytail: 换下一行（不挤在 voice-row 右侧） */
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  max-width: 240px;
 }
 
 .voice-wave {
@@ -2044,15 +2056,6 @@ a {
   margin-left: auto;
 }
 
-.voice-transcript {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line-soft);
-  font-size: 13px;
-  color: var(--ink-soft);
-  white-space: pre-wrap;
-  max-width: 240px;
-}
 /* ponytail: 用 class 替代 IDL `hidden` 属性 — iOS Safari 对 IDL hidden 反射到 attribute
    时常漏属性，[hidden] CSS 选择器就不命中，transcript 一直显。class toggle 万无一失 */
 /* 内联消息编辑器（替代 window.prompt，iOS Safari 会禁用 prompt） */
