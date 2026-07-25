@@ -4,7 +4,8 @@
    策略：安装时预缓存核心资源，请求时缓存优先 + 后台更新
    ============================================ */
 
-const CACHE_NAME = 'xiaoshouji-v31';
+const CACHE_NAME = 'xiaoshouji-v32-mobilesync'; // v32 mobile cache bust: 月月手机卡在 v30 / v31，需要强制 invalidate SW 缓存
+const APP_VERSION_FOR_SW = 'v31'; // 与 app.js 保持，避免 UI 数字频繁跳动
 const CORE_ASSETS = [
   './',
   './index.html',
