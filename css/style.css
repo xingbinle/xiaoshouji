@@ -1192,6 +1192,24 @@ a {
   gap: var(--gap-md);
 }
 
+.field-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding: 4px 0 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.field-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sky);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .button-row {
   display: flex;
   gap: var(--gap-sm);

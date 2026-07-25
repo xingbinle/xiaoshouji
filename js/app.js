@@ -179,6 +179,9 @@ let state = {
   // ===== 第二期：表情包 / AI心声 / 拍一拍 =====
   stickers: [],     // {id, name, cat, enabled, source:'url'|'local', url}（local 的图片 Blob 存 IndexedDB）
   stickerCats: {},  // {分类名: 是否启用}
+  // ★ v32.3：iOS Safari 7 天会清存储，每周弹一次提醒导出兜底
+  autoExportNudge: true,        // 用户总开关
+  lastAutoExportNudge: 0,       // 上次提醒 epoch ms
 };
 
 // ============ 加密（简单 XOR + Base64，给浏览器本地存 key 用） ============
@@ -337,6 +340,8 @@ function _applyDefaults() {
     : [{ id: 'g_default', name: '默认分区', enabled: true, rules: [] }];
   state.stickers = state.stickers || [];
   state.stickerCats = state.stickerCats || {};
+  state.autoExportNudge = state.autoExportNudge !== false;
+  state.lastAutoExportNudge = state.lastAutoExportNudge || 0;
   state.jailbreak = state.jailbreak || { enabled: true, content: '' };
   ensureDefaultAntiLectureRegex();
 }
@@ -2598,6 +2603,8 @@ function openSettings() {
   $('presencePenalty').value = state.presencePenalty || 0;
   const themeSelect = $('themeSelect');
   if (themeSelect) themeSelect.value = state.theme || 'dark';
+  const nudgeToggle = $('autoExportNudge');
+  if (nudgeToggle) nudgeToggle.checked = state.autoExportNudge !== false;
   $('settingsPanel').hidden = false;
   document.body.style.overflow = 'hidden';
 }
@@ -2721,6 +2728,9 @@ function exportChats() {
   a.href = URL.createObjectURL(blob);
   a.download = `xiaoshouji-full-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
+  // ponytail: 用户主动导出 → 把"上次提醒"刷成今天，自然重置 7 天周期
+  state.lastAutoExportNudge = Date.now();
+  saveState();
   toast('💾 已导出全量备份（含聊天/预设/正则/破限/角色/用户/长线记忆等）');
 }
 
@@ -3963,6 +3973,28 @@ function saveRegexEditor() {
   toast('已保存 ✓');
 }
 
+// ============ 每周导出提醒（iOS Safari 7 天兜底） ============
+// ponytail: 周日早 8-12 之间 + 距上次提醒 > 7 天 + 用户开着这个开关 → 弹 toast。
+//   用户主动点 export 后会把 lastAutoExportNudge 刷成当下，自然重置一周周期。
+//   云数据同步上线后这条删（云端兜底就够）。
+function maybeNudgeAutoExport() {
+  if (!state.autoExportNudge) return;
+  const now = new Date();
+  if (now.getDay() !== 0 || now.getHours() < 8 || now.getHours() >= 12) return;
+  if (Date.now() - (state.lastAutoExportNudge || 0) < 7 * 24 * 3600 * 1000) return;
+  state.lastAutoExportNudge = Date.now();
+  saveState();
+  toast('📦 一周没导出备份啦～菜单「设置」→「导出会话」保一份到文件 App / iCloud 🫶', 6000);
+}
+
+function bindAutoExportToggle() {
+  $('autoExportNudge').addEventListener('change', (e) => {
+    state.autoExportNudge = e.target.checked;
+    saveState();
+    toast(state.autoExportNudge ? '每周日会提醒你导出 ✓' : '已关掉每周导出提醒');
+  });
+}
+
 // ============ 初始化 ============
 // ============ iPhone 风格全屏锁屏（v0.5 · 单用户固定 PIN · 无 setup/reset） ============
 const PIN_LEN = 6;
@@ -4146,6 +4178,9 @@ function init() {
   // ★ 关键修复：先绑定所有事件监听器，再决定要不要弹锁屏
   //   （之前的 bug：未解锁就 return，导致页面卡死，所有交互失效）
   bindAllHandlers();
+
+  // ★ 每周导出提醒：启动 5s 后才检查（不挡解锁 + 首屏渲染）
+  setTimeout(maybeNudgeAutoExport, 5000);
 
   // ★ 强制锁屏：每次进入都要求解锁（单一密码模式）
   bindIphoneLock();
@@ -4386,6 +4421,7 @@ function bindAllHandlers() {
 
   // 数据
   $('exportBtn').addEventListener('click', exportChats);
+  bindAutoExportToggle(); // ★ v32.3 每周提醒 toggle
   $('importBtn').addEventListener('click', () => {
     const inp = document.createElement('input');
     inp.type = 'file';
